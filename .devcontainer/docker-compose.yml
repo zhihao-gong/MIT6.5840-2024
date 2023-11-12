@@ -13,9 +13,9 @@ services:
       # from /mnt/ssh to ~/.ssh to fix permissions.
       - ~/.ssh:/mnt/ssh
       # Shell history persistence
-      - ~/.zsh_history:/root/.zsh_history
+      - ~/.zsh_history:/home/gzh/.zsh_history
       # Git config
-      - ~/.gitconfig:/root/.gitconfig
+      - ~/.gitconfig:/home/gzh/.gitconfig
     environment:
       - TZ=
     cap_add:
