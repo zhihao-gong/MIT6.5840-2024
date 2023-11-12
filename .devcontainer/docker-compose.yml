@@ -8,10 +8,7 @@ services:
       # Docker socket to access Docker server
       - /var/run/docker.sock:/var/run/docker.sock
       # SSH directory for Linux, OSX and WSL
-      # On Linux and OSX, a symlink /mnt/ssh <-> ~/.ssh is
-      # created in the container. On Windows, files are copied
-      # from /mnt/ssh to ~/.ssh to fix permissions.
-      - ~/.ssh:/mnt/ssh
+      - ~/.ssh:/home/gzh/.ssh
       # Shell history persistence
       - ~/.zsh_history:/home/gzh/.zsh_history
       # Git config
