@@ -8,11 +8,11 @@ services:
       # Docker socket to access Docker server
       - /var/run/docker.sock:/var/run/docker.sock
       # SSH directory for Linux, OSX and WSL
-      - ~/.ssh:/home/gzh/.ssh
+      - ~/.ssh:/root/.ssh
       # Shell history persistence
-      - ~/.zsh_history:/home/gzh/.zsh_history
+      - ~/.zsh_history:/root/.zsh_history
       # Git config
-      - ~/.gitconfig:/home/gzh/.gitconfig
+      - ~/.gitconfig:/root/.gitconfig
     environment:
       - TZ=
     cap_add:
