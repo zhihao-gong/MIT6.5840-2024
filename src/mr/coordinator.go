@@ -18,12 +18,12 @@ type worker struct {
 	status       WorkerStatus
 }
 
-type MapTask struct {
+type mapTask struct {
 	Id       string
 	FileName string
 }
 
-type ReduceTask struct {
+type reduceTask struct {
 	Id string
 }
 
@@ -33,10 +33,10 @@ type Coordinator struct {
 	Workers     map[string]worker
 
 	MapTaskMutex sync.RWMutex
-	MapTasks     map[string]MapTask
+	MapTasks     map[string]mapTask
 
 	ReduceTaskMutex sync.RWMutex
-	ReduceTasks     map[string]ReduceTask
+	ReduceTasks     map[string]reduceTask
 
 	KeepAliveTheshold int64
 }
@@ -59,24 +59,6 @@ func (c *Coordinator) Register(args *RegisterArgs, reply *RegisterReply) error {
 
 	return nil
 }
-
-// Ping is called by the worker to let the coordinator know that it is still alive
-// func (c *Coordinator) Ping(args *PingArgs, reply *PingReply) error {
-// 	workerId := args.AssignedId
-
-// 	c.WorkerMutex.Lock()
-// 	defer c.WorkerMutex.Unlock()
-
-// 	worker, ok := c.Workers[workerId]
-// 	if !ok {
-// 		return errors.New("worker not found for id: " + workerId)
-// 	}
-
-// 	worker.LastPingTime = time.Now().Unix()
-// 	c.Workers[workerId] = worker
-
-// 	return nil
-// }
 
 // start a thread that listens for RPCs from worker.go
 func (c *Coordinator) server() {
