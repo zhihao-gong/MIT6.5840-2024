@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log"
+	"log/slog"
 	"net/rpc"
+	"os"
 	"time"
 )
 
@@ -32,11 +34,10 @@ type KeyValue struct {
 
 // Worker is the interface for the worker
 type myworker struct {
-	assignedId  string
-	status      WorkerStatus
-	mapFunc     func(string, string) []KeyValue
-	reduceFunc  func(string, []string) string
-	shuffleFunc func(string, []string) string
+	assignedId string
+	status     WorkerStatus
+	mapFunc    func(string, string) []KeyValue
+	reduceFunc func(string, []string) string
 
 	pendingTasks SafeQueue
 	finishedTask SafeQueue
@@ -58,10 +59,12 @@ func (w *myworker) register() string {
 	ok := call("Coordinator.Register", &args, &reply)
 
 	if !ok {
-		log.Fatal("Register error")
+		slog.Error("Register error")
+		os.Exit(1)
 	}
 	if reply.Code != 0 {
-		log.Fatal("Register error: ", reply.Message)
+		slog.Error("Register error: ", reply.Message)
+		os.Exit(1)
 	}
 
 	return reply.AssgnedId
@@ -74,12 +77,12 @@ func (w *myworker) AskForTask() {
 
 	ok := call("Coordinator.Report", &args, &reply)
 	if !ok {
-		log.error("Report error")
+		slog.Error("Report error")
 		return
 	}
 
 	if reply.Code != 0 {
-		log.error("Report error: ", reply.Message)
+		slog.Error("Report error: ", reply.Message)
 		return
 	}
 
@@ -91,26 +94,30 @@ func (w *myworker) DoTask() {
 		task := w.pendingTasks.Dequeue()
 		if task == nil {
 			time.Sleep(10 * time.Second)
+			continue
 		}
 
-		content, err := ReadFile(task.Input)
-		if err != nil {
-			log.error("Read file error: ", err)
-			time.Sleep(10 * time.Second)
-		}
 		switch task.Type {
 		case MapTaskType:
+
+			content, err := ReadFile(task.Input)
+			if err != nil {
+				slog.Error("Read file error: ", err)
+				time.Sleep(10 * time.Second)
+				continue
+			}
 			w.mapFunc(task.Input, content)
+
 		case ReduceTaskType:
-			w.reduceFunc(task.Input, content)
+			// w.reduceFunc(task.Input, content)
 		case ShuffleTaskType:
-			w.doShuffleTask(task)
+			// w.doShuffleTask(task)
 		}
 	}
 }
 
 // Start the worker and keep reporting the status to the coordinator
-func (w *myworker) Start() error {
+func (w *myworker) Start() {
 
 	w.assignedId = w.register()
 
@@ -124,7 +131,8 @@ func (w *myworker) Start() error {
 		}
 	}()
 
-	return nil
+	// Block forever
+	select {}
 }
 
 // use ihash(key) % NReduce to choose the reduce
