@@ -30,6 +30,7 @@ type KeyValue struct {
 	Value string
 }
 
+// Worker is the interface for the worker
 type myworker struct {
 	assignedId  string
 	status      WorkerStatus
@@ -82,22 +83,26 @@ func (w *myworker) AskForTask() {
 		return
 	}
 
-	pendingTasks.Enqueue(reply.Task)
+	w.pendingTasks.Enqueue(reply.Task)
 }
 
 func (w *myworker) DoTask() {
 	for {
-		task := pendingTasks.Dequeue()
+		task := w.pendingTasks.Dequeue()
 		if task == nil {
-			sleep(10 * time.Second)
+			time.Sleep(10 * time.Second)
 		}
 
-		task.Input
+		content, err := ReadFile(task.Input)
+		if err != nil {
+			log.error("Read file error: ", err)
+			time.Sleep(10 * time.Second)
+		}
 		switch task.Type {
 		case MapTaskType:
-			w.doMapTask(task)
+			w.mapFunc(task.Input, content)
 		case ReduceTaskType:
-			w.doReduceTask(task)
+			w.reduceFunc(task.Input, content)
 		case ShuffleTaskType:
 			w.doShuffleTask(task)
 		}
@@ -110,7 +115,6 @@ func (w *myworker) Start() error {
 	w.assignedId = w.register()
 
 	timer := time.NewTicker(10 * time.Second)
-
 	go func() {
 		for {
 			select {
