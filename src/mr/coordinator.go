@@ -79,6 +79,8 @@ func (c *Coordinator) AskForTask(args *AskForTaskArgs, reply *AskForTaskReply) e
 	reply.Code = 0
 	reply.Message = "Reported"
 
+	// TODO: Assign task
+
 	return nil
 }
 

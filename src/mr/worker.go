@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/rpc"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -35,6 +36,7 @@ type KeyValue struct {
 // Worker is the interface for the worker
 type myworker struct {
 	workerId   string
+	mutex      sync.RWMutex
 	status     WorkerStatus
 	mapFunc    func(string, string) []KeyValue
 	reduceFunc func(string, []string) string
@@ -73,10 +75,14 @@ func (w *myworker) register() string {
 
 // Report the status of the worker and task to the coordinator
 func (w *myworker) AskForTask() {
+	// lock for status race condition
+	w.mutex.Lock()
 	args := AskForTaskArgs{
 		WorkerId: w.workerId,
 		Status:   w.status,
 	}
+	w.mutex.Unlock()
+
 	reply := AskForTaskReply{}
 
 	ok := call("Coordinator.AskForTask", &args, &reply)
@@ -122,7 +128,6 @@ func (w *myworker) DoTask() {
 
 // Start the worker and keep reporting the status to the coordinator
 func (w *myworker) Start() {
-
 	w.workerId = w.register()
 	slog.Info("Registered successfully")
 
@@ -153,7 +158,6 @@ func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
 
 	// Your worker implementation here.
-
 	worker := myworker{
 		status:     Idle,
 		mapFunc:    mapf,
