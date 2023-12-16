@@ -54,8 +54,30 @@ func (c *Coordinator) Register(args *RegisterArgs, reply *RegisterReply) error {
 	c.WorkerMutex.Unlock()
 
 	reply.Code = 0
-	reply.AssgnedId = assignedId
+	reply.WorkerId = assignedId
 	reply.Message = "Registered"
+
+	return nil
+}
+
+// AskForTask is called by worker to report the status of the worker(keep alive) and assign a task if appropriate
+func (c *Coordinator) AskForTask(args *AskForTaskArgs, reply *AskForTaskReply) error {
+	c.WorkerMutex.Lock()
+	defer c.WorkerMutex.Unlock()
+
+	worker, ok := c.Workers[args.WorkerId]
+	if !ok {
+		reply.Code = 1
+		reply.Message = "Worker not found"
+		return nil
+	}
+
+	worker.LastPingTime = time.Now().Unix()
+	worker.status = args.Status
+	c.Workers[args.WorkerId] = worker
+
+	reply.Code = 0
+	reply.Message = "Reported"
 
 	return nil
 }

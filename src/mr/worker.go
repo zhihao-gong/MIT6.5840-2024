@@ -34,7 +34,7 @@ type KeyValue struct {
 
 // Worker is the interface for the worker
 type myworker struct {
-	assignedId string
+	workerId   string
 	status     WorkerStatus
 	mapFunc    func(string, string) []KeyValue
 	reduceFunc func(string, []string) string
@@ -58,8 +58,9 @@ func (w *myworker) register() string {
 
 	ok := call("Coordinator.Register", &args, &reply)
 
+	// TODO: Add retry logics
 	if !ok {
-		slog.Error("Register error")
+		slog.Error("Register error while rpc")
 		os.Exit(1)
 	}
 	if reply.Code != 0 {
@@ -67,22 +68,25 @@ func (w *myworker) register() string {
 		os.Exit(1)
 	}
 
-	return reply.AssgnedId
+	return reply.WorkerId
 }
 
 // Report the status of the worker and task to the coordinator
 func (w *myworker) AskForTask() {
-	args := AskForTaskArgs{}
+	args := AskForTaskArgs{
+		WorkerId: w.workerId,
+		Status:   w.status,
+	}
 	reply := AskForTaskReply{}
 
-	ok := call("Coordinator.Report", &args, &reply)
+	ok := call("Coordinator.AskForTask", &args, &reply)
 	if !ok {
-		slog.Error("Report error")
+		slog.Error("AskForTask error while rpc")
 		return
 	}
 
 	if reply.Code != 0 {
-		slog.Error("Report error: ", reply.Message)
+		slog.Error("AskForTask error: ", reply.Message)
 		return
 	}
 
@@ -119,7 +123,8 @@ func (w *myworker) DoTask() {
 // Start the worker and keep reporting the status to the coordinator
 func (w *myworker) Start() {
 
-	w.assignedId = w.register()
+	w.workerId = w.register()
+	slog.Info("Registered successfully")
 
 	timer := time.NewTicker(10 * time.Second)
 	go func() {

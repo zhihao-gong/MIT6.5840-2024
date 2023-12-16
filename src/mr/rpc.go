@@ -13,13 +13,14 @@ type RegisterArgs struct {
 }
 
 type RegisterReply struct {
-	Code      int
-	AssgnedId string
-	Message   string
+	Code     int
+	WorkerId string
+	Message  string
 }
 
 type AskForTaskArgs struct {
-	Status WorkerStatus
+	WorkerId string
+	Status   WorkerStatus
 }
 
 type AskForTaskReply struct {
