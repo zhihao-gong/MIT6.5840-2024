@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"net/rpc"
 	"os"
+	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
-	"path/filepath"
+
 	"github.com/google/uuid"
 )
 
@@ -21,7 +23,7 @@ type worker struct {
 type Phase int
 
 const (
-	Map  = iota
+	Map = iota
 	Reduce
 )
 
@@ -134,31 +136,28 @@ func (c *Coordinator) Done() bool {
 	return ret
 }
 
-func createMapOutputFiles(taskId: string, nReduce int) []string {
-	outputFiles := make([]string, nReduce)
-	for i := 0; i < nReduce; i++ {
-		outputFiles[i] = filepath.Join(os.TempDir(), "mr-" + taskId + "-" + strconv.Itoa(i))
-	}
-	return outputFiles
-}
-
 // create tasks based on input files
-func createTasks(files []string) map[string]*Task {
+func createTasks(files []string, nReduce int) map[string]*Task {
 	tasks := make(map[string]*Task)
 
 	for _, file := range files {
 		id := uuid.New().String()
+		input := make([]filename, len(file))
+		for i, f := range file {
+			input[i] = filename(f)
+		}
+
+		outputFiles := make([]filename, nReduce)
+		for i := 0; i < nReduce; i++ {
+			outputFiles[i] = filepath.Join(os.TempDir(), "mr-"+id+"-"+strconv.Itoa(i))
+		}
 		tasks[id] = &Task{
-			Id: file,
-			Type: Map,
-			// init Input as a slice of string
-			Input: []string{file},
-			// generate one out file for each reduce task
-			Output: createMapOutputFiles(id, nReduce),
+			Id:     file,
+			Type:   Map,
+			Input:  input,
+			Output: outputFiles,
 		}
 	}
-
-	for create
 
 	return tasks
 }
@@ -167,7 +166,6 @@ func createTasks(files []string) map[string]*Task {
 // main/mrcoordinator.go calls this function.
 // nReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
-	files
 	c := Coordinator{
 		KeepAliveTheshold: 60,
 		Workers:           make(map[string]worker),
