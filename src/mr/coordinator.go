@@ -138,7 +138,7 @@ func (c *Coordinator) Done() bool {
 
 // create tasks based on input files
 func createTasks(files []string, nReduce int) map[string]*Task {
-	tasks := make(map[string]*Task)
+	mapTasks := make(map[string]*Task)
 
 	for _, file := range files {
 		id := uuid.New().String()
@@ -151,11 +151,28 @@ func createTasks(files []string, nReduce int) map[string]*Task {
 		for i := 0; i < nReduce; i++ {
 			outputFiles[i] = filepath.Join(os.TempDir(), "mr-"+id+"-"+strconv.Itoa(i))
 		}
-		tasks[id] = &Task{
-			Id:          file,
+		mapTasks[id] = &Task{
+			Id:          id,
 			Type:        Map,
 			InputFiles:  InputFiles,
 			OutputFiles: outputFiles,
+		}
+	}
+
+	reduceTasks := make(map[string]*Task)
+	for i := 0; i < nReduce; i++ {
+		id := uuid.New().String()
+		InputFiles := make([]string, len(mapTasks))
+		for j, f := range mapTasks {
+			InputFiles[j] = f.OutputFiles[i]
+		}
+		
+		outputFiles := []string{filepath.Join(os.TempDir(), "mr-out-"+strconv.Itoa(i))}
+		reduceTasks[id] = &Task{
+			Id: id,
+			Type: Reduce,
+			InputFiles: InputFiles,
+			OutputFiles: OutputFiles,
 		}
 	}
 
