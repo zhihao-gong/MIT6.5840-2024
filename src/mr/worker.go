@@ -17,6 +17,7 @@ const (
 	Idle WorkerStatus = iota
 	InProgress
 	Completed
+	Lost
 )
 
 type TaskType int
@@ -24,7 +25,6 @@ type TaskType int
 const (
 	MapTaskType TaskType = iota
 	ReduceTaskType
-	ShuffleTaskType
 )
 
 // Map functions return a slice of KeyValue.
@@ -45,11 +45,13 @@ type myworker struct {
 	finishedTask SafeQueue
 }
 
+type filename string
+
 // Task is the unit of work for the worker
 type Task struct {
 	Id     string
-	Input  string
-	Output string
+	Input  []filename
+	Output []filename
 	Type   TaskType
 }
 
