@@ -49,10 +49,10 @@ type filename string
 
 // Task is the unit of work for the worker
 type Task struct {
-	Id     string
-	Input  []filename
-	Output []filename
-	Type   TaskType
+	Id          string
+	InputFiles  []string
+	OutputFiles []string
+	Type        TaskType
 }
 
 // Register worker on the corrdinator side and get the assigned id
@@ -122,8 +122,6 @@ func (w *myworker) DoTask() {
 
 		case ReduceTaskType:
 			// w.reduceFunc(task.Input, content)
-		case ShuffleTaskType:
-			// w.doShuffleTask(task)
 		}
 	}
 }

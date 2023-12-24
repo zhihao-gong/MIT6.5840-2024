@@ -142,20 +142,20 @@ func createTasks(files []string, nReduce int) map[string]*Task {
 
 	for _, file := range files {
 		id := uuid.New().String()
-		input := make([]filename, len(file))
+		InputFiles := make([]string, len(file))
 		for i, f := range file {
-			input[i] = filename(f)
+			InputFiles[i] = string(f)
 		}
 
-		outputFiles := make([]filename, nReduce)
+		outputFiles := make([]string, nReduce)
 		for i := 0; i < nReduce; i++ {
 			outputFiles[i] = filepath.Join(os.TempDir(), "mr-"+id+"-"+strconv.Itoa(i))
 		}
 		tasks[id] = &Task{
-			Id:     file,
-			Type:   Map,
-			Input:  input,
-			Output: outputFiles,
+			Id:          file,
+			Type:        Map,
+			InputFiles:  InputFiles,
+			OutputFiles: outputFiles,
 		}
 	}
 
