@@ -166,13 +166,13 @@ func createTasks(files []string, nReduce int) map[string]*Task {
 		for j, f := range mapTasks {
 			InputFiles[j] = f.OutputFiles[i]
 		}
-		
+
 		outputFiles := []string{filepath.Join(os.TempDir(), "mr-out-"+strconv.Itoa(i))}
 		reduceTasks[id] = &Task{
-			Id: id,
-			Type: Reduce,
-			InputFiles: InputFiles,
-			OutputFiles: OutputFiles,
+			Id:          id,
+			Type:        Reduce,
+			InputFiles:  InputFiles,
+			OutputFiles: outputFiles,
 		}
 	}
 
