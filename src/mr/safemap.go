@@ -57,3 +57,10 @@ func (sm *SafeMap[T]) Copy() map[string]T {
 	}
 	return m
 }
+
+// update a field of a task in the map
+func (sm *SafeMap[T]) Update(key string, update func(T)) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	update(sm.m[key])
+}

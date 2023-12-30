@@ -82,6 +82,7 @@ func (c *Coordinator) auditWorkerStatus() {
 		if time.Now().Unix()-worker.LastPingTime > c.KeepAliveTheshold {
 			// Update the status of the worker to lost
 			worker.status = Lost
+			c.Workers.Put(worker.Id, worker)
 		}
 	}
 }
