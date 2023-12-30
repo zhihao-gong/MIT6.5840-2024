@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,10 +28,10 @@ const (
 
 // Coordinator holds all the information about the current state of the map reduce job
 type Coordinator struct {
-	Workers SafeMap[worker]
+	Workers *SafeMap[worker]
 
-	TaskMutex sync.RWMutex
-	Tasks     map[string]Task
+	MapTasks    *SafeMap[Task]
+	ReduceTasks *SafeMap[Task]
 
 	CurrPhase Phase
 
@@ -128,8 +127,8 @@ func (c *Coordinator) Done() bool {
 }
 
 // create tasks based on input files
-func createTasks(files []string, nReduce int) map[string]*Task {
-	mapTasks := make(map[string]*Task)
+func createTasks(files []string, nReduce int) (*SafeMap[Task], *SafeMap[Task]) {
+	mapTasks := SafeMap[Task]{}
 
 	for _, file := range files {
 		id := uuid.New().String()
@@ -137,45 +136,51 @@ func createTasks(files []string, nReduce int) map[string]*Task {
 		for i, f := range file {
 			InputFiles[i] = string(f)
 		}
-
 		outputFiles := make([]string, nReduce)
 		for i := 0; i < nReduce; i++ {
 			outputFiles[i] = filepath.Join(os.TempDir(), "mr-"+id+"-"+strconv.Itoa(i))
 		}
-		mapTasks[id] = &Task{
+		mapTasks.Put(id, Task{
 			Id:          id,
 			Type:        Map,
 			InputFiles:  InputFiles,
 			OutputFiles: outputFiles,
-		}
+		})
 	}
 
-	reduceTasks := make(map[string]*Task)
+	reduceTasks := SafeMap[Task]{}
+	mapTasksCopy := mapTasks.Copy()
 	for i := 0; i < nReduce; i++ {
 		id := uuid.New().String()
-		InputFiles := make([]string, len(mapTasks))
-		for j, f := range mapTasks {
-			InputFiles[j] = f.OutputFiles[i]
+
+		j := 0
+		InputFiles := make([]string, len(mapTasksCopy))
+		for _, t := range mapTasksCopy {
+			InputFiles[j] = t.OutputFiles[i]
+			j++
 		}
 
 		outputFiles := []string{filepath.Join(os.TempDir(), "mr-out-"+strconv.Itoa(i))}
-		reduceTasks[id] = &Task{
+		reduceTasks.Put(id, Task{
 			Id:          id,
 			Type:        Reduce,
 			InputFiles:  InputFiles,
 			OutputFiles: outputFiles,
-		}
+		})
 	}
 
-	return tasks
+	return &mapTasks, &reduceTasks
 }
 
 // create a Coordinator.
 // main/mrcoordinator.go calls this function.
 // nReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
+	mapTasks, reduceTasks := createTasks(files, nReduce)
 	c := Coordinator{
-		Workers:           SafeMap[worker]{},
+		Workers:           &SafeMap[worker]{},
+		MapTasks:          mapTasks,
+		ReduceTasks:       reduceTasks,
 		KeepAliveTheshold: 60,
 	}
 

@@ -41,3 +41,19 @@ func (sm *SafeMap[T]) Values() []T {
 	}
 	return values
 }
+
+func (sm *SafeMap[T]) Len() int {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	return len(sm.m)
+}
+
+func (sm *SafeMap[T]) Copy() map[string]T {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	m := make(map[string]T)
+	for k, v := range sm.m {
+		m[k] = v
+	}
+	return m
+}
