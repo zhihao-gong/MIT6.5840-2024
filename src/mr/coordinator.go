@@ -6,7 +6,8 @@ import (
 	"net/http"
 	"net/rpc"
 	"os"
-	"sync"
+	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,25 +19,21 @@ type worker struct {
 	status       WorkerStatus
 }
 
-type mapTask struct {
-	Id       string
-	FileName string
-}
+type Phase int
 
-type reduceTask struct {
-	Id string
-}
+const (
+	Map = iota
+	Reduce
+)
 
 // Coordinator holds all the information about the current state of the map reduce job
 type Coordinator struct {
-	WorkerMutex sync.RWMutex
-	Workers     map[string]worker
+	Workers *SafeMap[worker]
 
-	MapTaskMutex sync.RWMutex
-	MapTasks     map[string]mapTask
+	MapTasks    *SafeMap[Task]
+	ReduceTasks *SafeMap[Task]
 
-	ReduceTaskMutex sync.RWMutex
-	ReduceTasks     map[string]reduceTask
+	CurrPhase Phase
 
 	KeepAliveTheshold int64
 }
@@ -45,13 +42,11 @@ type Coordinator struct {
 func (c *Coordinator) Register(args *RegisterArgs, reply *RegisterReply) error {
 	assignedId := uuid.New().String()
 
-	c.WorkerMutex.Lock()
-	c.Workers[assignedId] = worker{
+	c.Workers.Put(assignedId, worker{
 		Id:           assignedId,
 		LastPingTime: time.Now().Unix(),
 		status:       Idle,
-	}
-	c.WorkerMutex.Unlock()
+	})
 
 	reply.Code = 0
 	reply.WorkerId = assignedId
@@ -62,10 +57,7 @@ func (c *Coordinator) Register(args *RegisterArgs, reply *RegisterReply) error {
 
 // AskForTask is called by worker to report the status of the worker(keep alive) and assign a task if appropriate
 func (c *Coordinator) AskForTask(args *AskForTaskArgs, reply *AskForTaskReply) error {
-	c.WorkerMutex.Lock()
-	defer c.WorkerMutex.Unlock()
-
-	worker, ok := c.Workers[args.WorkerId]
+	worker, ok := c.Workers.Get(args.WorkerId)
 	if !ok {
 		reply.Code = 1
 		reply.Message = "Worker not found"
@@ -74,7 +66,7 @@ func (c *Coordinator) AskForTask(args *AskForTaskArgs, reply *AskForTaskReply) e
 
 	worker.LastPingTime = time.Now().Unix()
 	worker.status = args.Status
-	c.Workers[args.WorkerId] = worker
+	c.Workers.Put(args.WorkerId, worker)
 
 	reply.Code = 0
 	reply.Message = "Reported"
@@ -82,6 +74,33 @@ func (c *Coordinator) AskForTask(args *AskForTaskArgs, reply *AskForTaskReply) e
 	// TODO: Assign task
 
 	return nil
+}
+
+// Check if a worker is lost of connection, reassigned the task if appropriate
+func (c *Coordinator) auditWorkerStatus() {
+	for _, worker := range c.Workers.Values() {
+		if time.Now().Unix()-worker.LastPingTime > c.KeepAliveTheshold {
+			// Update the status of the worker to lost
+			worker.status = Lost
+			c.Workers.Put(worker.Id, worker)
+		}
+	}
+}
+
+// Start the coordinator
+func (c *Coordinator) Start() {
+	timer := time.NewTicker(10 * time.Second)
+
+	go func() {
+		for {
+			select {
+			case <-timer.C:
+				c.auditWorkerStatus()
+			}
+		}
+	}()
+
+	c.server()
 }
 
 // start a thread that listens for RPCs from worker.go
@@ -108,16 +127,64 @@ func (c *Coordinator) Done() bool {
 	return ret
 }
 
+// create tasks based on input files
+func createTasks(files []string, nReduce int) (*SafeMap[Task], *SafeMap[Task]) {
+	mapTasks := SafeMap[Task]{}
+
+	for _, file := range files {
+		id := uuid.New().String()
+		InputFiles := make([]string, len(file))
+		for i, f := range file {
+			InputFiles[i] = string(f)
+		}
+		outputFiles := make([]string, nReduce)
+		for i := 0; i < nReduce; i++ {
+			outputFiles[i] = filepath.Join(os.TempDir(), "mr-"+id+"-"+strconv.Itoa(i))
+		}
+		mapTasks.Put(id, Task{
+			Id:          id,
+			Type:        Map,
+			InputFiles:  InputFiles,
+			OutputFiles: outputFiles,
+		})
+	}
+
+	reduceTasks := SafeMap[Task]{}
+	mapTasksCopy := mapTasks.Copy()
+	for i := 0; i < nReduce; i++ {
+		id := uuid.New().String()
+
+		j := 0
+		InputFiles := make([]string, len(mapTasksCopy))
+		for _, t := range mapTasksCopy {
+			InputFiles[j] = t.OutputFiles[i]
+			j++
+		}
+
+		outputFiles := []string{filepath.Join(os.TempDir(), "mr-out-"+strconv.Itoa(i))}
+		reduceTasks.Put(id, Task{
+			Id:          id,
+			Type:        Reduce,
+			InputFiles:  InputFiles,
+			OutputFiles: outputFiles,
+		})
+	}
+
+	return &mapTasks, &reduceTasks
+}
+
 // create a Coordinator.
 // main/mrcoordinator.go calls this function.
 // nReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
+	mapTasks, reduceTasks := createTasks(files, nReduce)
 	c := Coordinator{
-		KeepAliveTheshold: 10,
-		Workers:           make(map[string]worker),
-		WorkerMutex:       sync.RWMutex{},
+		Workers:           &SafeMap[worker]{},
+		MapTasks:          mapTasks,
+		ReduceTasks:       reduceTasks,
+		KeepAliveTheshold: 60,
 	}
 
-	c.server()
+	c.Start()
 	return &c
 }

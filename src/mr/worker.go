@@ -17,6 +17,7 @@ const (
 	Idle WorkerStatus = iota
 	InProgress
 	Completed
+	Lost
 )
 
 type TaskType int
@@ -24,7 +25,6 @@ type TaskType int
 const (
 	MapTaskType TaskType = iota
 	ReduceTaskType
-	ShuffleTaskType
 )
 
 // Map functions return a slice of KeyValue.
@@ -45,12 +45,14 @@ type myworker struct {
 	finishedTask SafeQueue
 }
 
+type filename string
+
 // Task is the unit of work for the worker
 type Task struct {
-	Id     string
-	Input  string
-	Output string
-	Type   TaskType
+	Id          string
+	InputFiles  []string
+	OutputFiles []string
+	Type        TaskType
 }
 
 // Register worker on the corrdinator side and get the assigned id
@@ -120,8 +122,6 @@ func (w *myworker) DoTask() {
 
 		case ReduceTaskType:
 			// w.reduceFunc(task.Input, content)
-		case ShuffleTaskType:
-			// w.doShuffleTask(task)
 		}
 	}
 }
