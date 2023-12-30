@@ -2,31 +2,31 @@ package mr
 
 import "sync"
 
-type SafeMap struct {
+type SafeMap[T any] struct {
 	mu sync.RWMutex
-	m  map[interface{}]interface{}
+	m  map[string]T
 }
 
-func NewSafeMap() *SafeMap {
-	return &SafeMap{
-		m: make(map[interface{}]interface{}),
+func NewSafeMap[T any]() *SafeMap[T] {
+	return &SafeMap[T]{
+		m: make(map[string]T),
 	}
 }
 
-func (sm *SafeMap) Put(key, value interface{}) {
+func (sm *SafeMap[T]) Put(key string, value T) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	sm.m[key] = value
 }
 
-func (sm *SafeMap) Get(key interface{}) (interface{}, bool) {
+func (sm *SafeMap[T]) Get(key string) (any, bool) {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	value, ok := sm.m[key]
 	return value, ok
 }
 
-func (sm *SafeMap) Delete(key interface{}) {
+func (sm *SafeMap[T]) Delete(key string) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	delete(sm.m, key)
