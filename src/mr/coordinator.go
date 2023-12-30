@@ -29,8 +29,7 @@ const (
 
 // Coordinator holds all the information about the current state of the map reduce job
 type Coordinator struct {
-	WorkerMutex sync.RWMutex
-	Workers     map[string]worker
+	Workers SafeMap[worker]
 
 	TaskMutex sync.RWMutex
 	Tasks     map[string]Task
@@ -44,13 +43,11 @@ type Coordinator struct {
 func (c *Coordinator) Register(args *RegisterArgs, reply *RegisterReply) error {
 	assignedId := uuid.New().String()
 
-	c.WorkerMutex.Lock()
-	c.Workers[assignedId] = worker{
+	c.Workers.Put(assignedId, worker{
 		Id:           assignedId,
 		LastPingTime: time.Now().Unix(),
 		status:       Idle,
-	}
-	c.WorkerMutex.Unlock()
+	})
 
 	reply.Code = 0
 	reply.WorkerId = assignedId
@@ -61,10 +58,7 @@ func (c *Coordinator) Register(args *RegisterArgs, reply *RegisterReply) error {
 
 // AskForTask is called by worker to report the status of the worker(keep alive) and assign a task if appropriate
 func (c *Coordinator) AskForTask(args *AskForTaskArgs, reply *AskForTaskReply) error {
-	c.WorkerMutex.Lock()
-	defer c.WorkerMutex.Unlock()
-
-	worker, ok := c.Workers[args.WorkerId]
+	worker, ok := c.Workers.Get(args.WorkerId)
 	if !ok {
 		reply.Code = 1
 		reply.Message = "Worker not found"
@@ -73,7 +67,7 @@ func (c *Coordinator) AskForTask(args *AskForTaskArgs, reply *AskForTaskReply) e
 
 	worker.LastPingTime = time.Now().Unix()
 	worker.status = args.Status
-	c.Workers[args.WorkerId] = worker
+	c.Workers.Put(args.WorkerId, worker)
 
 	reply.Code = 0
 	reply.Message = "Reported"
@@ -85,10 +79,7 @@ func (c *Coordinator) AskForTask(args *AskForTaskArgs, reply *AskForTaskReply) e
 
 // Check if a worker is lost of connection, reassigned the task if appropriate
 func (c *Coordinator) auditWorkerStatus() {
-	c.WorkerMutex.Lock()
-	defer c.WorkerMutex.Unlock()
-
-	for _, worker := range c.Workers {
+	for _, worker := range c.Workers.Values() {
 		if time.Now().Unix()-worker.LastPingTime > c.KeepAliveTheshold {
 			// Update the status of the worker to lost
 			worker.status = Lost
@@ -184,9 +175,8 @@ func createTasks(files []string, nReduce int) map[string]*Task {
 // nReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{
+		Workers:           SafeMap[worker]{},
 		KeepAliveTheshold: 60,
-		Workers:           make(map[string]worker),
-		WorkerMutex:       sync.RWMutex{},
 	}
 
 	c.Start()

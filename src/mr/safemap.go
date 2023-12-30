@@ -19,7 +19,7 @@ func (sm *SafeMap[T]) Put(key string, value T) {
 	sm.m[key] = value
 }
 
-func (sm *SafeMap[T]) Get(key string) (any, bool) {
+func (sm *SafeMap[T]) Get(key string) (T, bool) {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	value, ok := sm.m[key]
@@ -30,4 +30,14 @@ func (sm *SafeMap[T]) Delete(key string) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	delete(sm.m, key)
+}
+
+func (sm *SafeMap[T]) Values() []T {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	values := make([]T, 0, len(sm.m))
+	for _, value := range sm.m {
+		values = append(values, value)
+	}
+	return values
 }
