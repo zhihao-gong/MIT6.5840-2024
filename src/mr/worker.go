@@ -9,8 +9,6 @@ import (
 	"os"
 	"sync"
 	"time"
-
-	"6.5840/utils"
 )
 
 type WorkerStatus int
@@ -43,8 +41,8 @@ type myworker struct {
 	mapFunc    func(string, string) []KeyValue
 	reduceFunc func(string, []string) string
 
-	pendingTasks utils.SafeQueue[Task]
-	finishedTask utils.SafeQueue[Task]
+	pendingTasks SafeQueue
+	finishedTask SafeQueue
 }
 
 type filename string
@@ -113,13 +111,6 @@ func (w *myworker) DoTask() {
 
 		switch task.Type {
 		case MapTaskType:
-			// content, err := ReadFile(task.Input)
-			// if err != nil {
-			// 	slog.Error("Read file error: ", err)
-			// 	time.Sleep(10 * time.Second)
-			// 	continue
-			// }
-			// w.mapFunc(task.Input, content)
 
 		case ReduceTaskType:
 			// w.reduceFunc(task.Input, content)
