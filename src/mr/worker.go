@@ -9,6 +9,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"6.5840/utils"
 )
 
 type WorkerStatus int
@@ -41,8 +43,8 @@ type myworker struct {
 	mapFunc    func(string, string) []KeyValue
 	reduceFunc func(string, []string) string
 
-	pendingTasks SafeQueue
-	finishedTask SafeQueue
+	pendingTasks utils.SafeQueue[Task]
+	finishedTask utils.SafeQueue[Task]
 }
 
 type filename string

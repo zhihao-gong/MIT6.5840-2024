@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"6.5840/utils"
 	"github.com/google/uuid"
 )
 
@@ -28,10 +29,10 @@ const (
 
 // Coordinator holds all the information about the current state of the map reduce job
 type Coordinator struct {
-	workers *SafeMap[worker]
+	workers *utils.SafeMap[worker]
 
-	mapTasks    *SafeMap[Task]
-	reduceTasks *SafeMap[Task]
+	mapTasks    *utils.SafeMap[Task]
+	reduceTasks *utils.SafeMap[Task]
 
 	currPhase Phase
 
@@ -128,8 +129,8 @@ func (c *Coordinator) Done() bool {
 }
 
 // create tasks based on input files
-func createTasks(files []string, nReduce int) (*SafeMap[Task], *SafeMap[Task]) {
-	mapTasks := NewSafeMap[Task]()
+func createTasks(files []string, nReduce int) (*utils.SafeMap[Task], *utils.SafeMap[Task]) {
+	mapTasks := utils.NewSafeMap[Task]()
 
 	for _, file := range files {
 		id := uuid.New().String()
@@ -148,7 +149,7 @@ func createTasks(files []string, nReduce int) (*SafeMap[Task], *SafeMap[Task]) {
 		})
 	}
 
-	reduceTasks := NewSafeMap[Task]()
+	reduceTasks := utils.NewSafeMap[Task]()
 	mapTasksCopy := mapTasks.Copy()
 	for i := 0; i < nReduce; i++ {
 		id := uuid.New().String()
@@ -178,7 +179,7 @@ func createTasks(files []string, nReduce int) (*SafeMap[Task], *SafeMap[Task]) {
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	mapTasks, reduceTasks := createTasks(files, nReduce)
 	c := Coordinator{
-		workers:           &SafeMap[worker]{},
+		workers:           &utils.SafeMap[worker]{},
 		mapTasks:          mapTasks,
 		reduceTasks:       reduceTasks,
 		keepAliveTheshold: 60,
