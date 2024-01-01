@@ -1,4 +1,4 @@
-package mr
+package utils
 
 import (
 	"io"
