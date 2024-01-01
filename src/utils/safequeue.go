@@ -1,21 +1,21 @@
-package mr
+package utils
 
 import (
 	"sync"
 )
 
-type SafeQueue struct {
-	queue []Task
+type SafeQueue[T any] struct {
+	queue []T
 	mutex sync.Mutex
 }
 
-func (q *SafeQueue) Enqueue(t Task) {
+func (q *SafeQueue[T]) Enqueue(t T) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 	q.queue = append(q.queue, t)
 }
 
-func (q *SafeQueue) Dequeue() *Task {
+func (q *SafeQueue[T]) Dequeue() *T {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 

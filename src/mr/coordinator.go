@@ -10,12 +10,13 @@ import (
 	"strconv"
 	"time"
 
+	"6.5840/utils"
 	"github.com/google/uuid"
 )
 
 type worker struct {
-	Id           string
-	LastPingTime int64
+	id           string
+	lastPingTime int64
 	status       WorkerStatus
 }
 
@@ -28,23 +29,23 @@ const (
 
 // Coordinator holds all the information about the current state of the map reduce job
 type Coordinator struct {
-	Workers *SafeMap[worker]
+	workers *utils.SafeMap[worker]
 
-	MapTasks    *SafeMap[Task]
-	ReduceTasks *SafeMap[Task]
+	mapTasks    *utils.SafeMap[Task]
+	reduceTasks *utils.SafeMap[Task]
 
-	CurrPhase Phase
+	currPhase Phase
 
-	KeepAliveTheshold int64
+	keepAliveTheshold int64
 }
 
 // RegisterWorker generates a unique ID for a new worker, assigns it to the worker and returns the ID
 func (c *Coordinator) Register(args *RegisterArgs, reply *RegisterReply) error {
 	assignedId := uuid.New().String()
 
-	c.Workers.Put(assignedId, worker{
-		Id:           assignedId,
-		LastPingTime: time.Now().Unix(),
+	c.workers.Put(assignedId, worker{
+		id:           assignedId,
+		lastPingTime: time.Now().Unix(),
 		status:       Idle,
 	})
 
@@ -57,16 +58,16 @@ func (c *Coordinator) Register(args *RegisterArgs, reply *RegisterReply) error {
 
 // AskForTask is called by worker to report the status of the worker(keep alive) and assign a task if appropriate
 func (c *Coordinator) AskForTask(args *AskForTaskArgs, reply *AskForTaskReply) error {
-	worker, ok := c.Workers.Get(args.WorkerId)
+	worker, ok := c.workers.Get(args.WorkerId)
 	if !ok {
 		reply.Code = 1
 		reply.Message = "Worker not found"
 		return nil
 	}
 
-	worker.LastPingTime = time.Now().Unix()
+	worker.lastPingTime = time.Now().Unix()
 	worker.status = args.Status
-	c.Workers.Put(args.WorkerId, worker)
+	c.workers.Put(args.WorkerId, worker)
 
 	reply.Code = 0
 	reply.Message = "Reported"
@@ -78,17 +79,17 @@ func (c *Coordinator) AskForTask(args *AskForTaskArgs, reply *AskForTaskReply) e
 
 // Check if a worker is lost of connection, reassigned the task if appropriate
 func (c *Coordinator) auditWorkerStatus() {
-	for _, worker := range c.Workers.Values() {
-		if time.Now().Unix()-worker.LastPingTime > c.KeepAliveTheshold {
+	for _, worker := range c.workers.Values() {
+		if time.Now().Unix()-worker.lastPingTime > c.keepAliveTheshold {
 			// Update the status of the worker to lost
 			worker.status = Lost
-			c.Workers.Put(worker.Id, worker)
+			c.workers.Put(worker.id, worker)
 		}
 	}
 }
 
 // Start the coordinator
-func (c *Coordinator) Start() {
+func (c *Coordinator) start() {
 	timer := time.NewTicker(10 * time.Second)
 
 	go func() {
@@ -128,15 +129,14 @@ func (c *Coordinator) Done() bool {
 }
 
 // create tasks based on input files
-func createTasks(files []string, nReduce int) (*SafeMap[Task], *SafeMap[Task]) {
-	mapTasks := SafeMap[Task]{}
+func createTasks(files []string, nReduce int) (*utils.SafeMap[Task], *utils.SafeMap[Task]) {
+	mapTasks := utils.NewSafeMap[Task]()
 
 	for _, file := range files {
 		id := uuid.New().String()
-		InputFiles := make([]string, len(file))
-		for i, f := range file {
-			InputFiles[i] = string(f)
-		}
+		InputFiles := make([]string, 1)
+		InputFiles[0] = file
+
 		outputFiles := make([]string, nReduce)
 		for i := 0; i < nReduce; i++ {
 			outputFiles[i] = filepath.Join(os.TempDir(), "mr-"+id+"-"+strconv.Itoa(i))
@@ -149,7 +149,7 @@ func createTasks(files []string, nReduce int) (*SafeMap[Task], *SafeMap[Task]) {
 		})
 	}
 
-	reduceTasks := SafeMap[Task]{}
+	reduceTasks := utils.NewSafeMap[Task]()
 	mapTasksCopy := mapTasks.Copy()
 	for i := 0; i < nReduce; i++ {
 		id := uuid.New().String()
@@ -170,7 +170,7 @@ func createTasks(files []string, nReduce int) (*SafeMap[Task], *SafeMap[Task]) {
 		})
 	}
 
-	return &mapTasks, &reduceTasks
+	return mapTasks, reduceTasks
 }
 
 // create a Coordinator.
@@ -179,12 +179,12 @@ func createTasks(files []string, nReduce int) (*SafeMap[Task], *SafeMap[Task]) {
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	mapTasks, reduceTasks := createTasks(files, nReduce)
 	c := Coordinator{
-		Workers:           &SafeMap[worker]{},
-		MapTasks:          mapTasks,
-		ReduceTasks:       reduceTasks,
-		KeepAliveTheshold: 60,
+		workers:           &utils.SafeMap[worker]{},
+		mapTasks:          mapTasks,
+		reduceTasks:       reduceTasks,
+		keepAliveTheshold: 60,
 	}
 
-	c.Start()
+	c.start()
 	return &c
 }

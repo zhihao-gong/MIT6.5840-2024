@@ -112,14 +112,6 @@ func (w *myworker) DoTask() {
 		switch task.Type {
 		case MapTaskType:
 
-			content, err := ReadFile(task.Input)
-			if err != nil {
-				slog.Error("Read file error: ", err)
-				time.Sleep(10 * time.Second)
-				continue
-			}
-			w.mapFunc(task.Input, content)
-
 		case ReduceTaskType:
 			// w.reduceFunc(task.Input, content)
 		}
