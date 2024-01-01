@@ -14,19 +14,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type worker struct {
-	id           string
-	lastPingTime int64
-	status       WorkerStatus
-}
-
-type Phase int
-
-const (
-	Map = iota
-	Reduce
-)
-
 // Coordinator holds all the information about the current state of the map reduce job
 type Coordinator struct {
 	workers *utils.SafeMap[worker]
@@ -143,7 +130,7 @@ func createTasks(files []string, nReduce int) (*utils.SafeMap[Task], *utils.Safe
 		}
 		mapTasks.Put(id, Task{
 			Id:          id,
-			Type:        Map,
+			Type:        MapTaskType,
 			InputFiles:  InputFiles,
 			OutputFiles: outputFiles,
 		})
@@ -164,7 +151,7 @@ func createTasks(files []string, nReduce int) (*utils.SafeMap[Task], *utils.Safe
 		outputFiles := []string{filepath.Join(os.TempDir(), "mr-out-"+strconv.Itoa(i))}
 		reduceTasks.Put(id, Task{
 			Id:          id,
-			Type:        Reduce,
+			Type:        ReduceTaskType,
 			InputFiles:  InputFiles,
 			OutputFiles: outputFiles,
 		})

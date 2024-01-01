@@ -13,28 +13,6 @@ import (
 	"6.5840/utils"
 )
 
-type WorkerStatus int
-
-const (
-	Idle WorkerStatus = iota
-	InProgress
-	Completed
-	Lost
-)
-
-type TaskType int
-
-const (
-	MapTaskType TaskType = iota
-	ReduceTaskType
-)
-
-// Map functions return a slice of KeyValue.
-type KeyValue struct {
-	Key   string
-	Value string
-}
-
 // Worker is the interface for the worker
 type myworker struct {
 	workerId   string
@@ -45,16 +23,6 @@ type myworker struct {
 
 	pendingTasks utils.SafeQueue[Task]
 	finishedTask utils.SafeQueue[Task]
-}
-
-type filename string
-
-// Task is the unit of work for the worker
-type Task struct {
-	Id          string
-	InputFiles  []string
-	OutputFiles []string
-	Type        TaskType
 }
 
 // Register worker on the corrdinator side and get the assigned id
