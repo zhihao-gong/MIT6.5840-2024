@@ -14,7 +14,7 @@ import (
 )
 
 // Worker is the interface for the worker
-type myworker struct {
+type myWorkers struct {
 	workerId   string
 	mutex      sync.RWMutex
 	status     WorkerStatus
@@ -26,7 +26,7 @@ type myworker struct {
 }
 
 // Register worker on the corrdinator side and get the assigned id
-func (w *myworker) register() string {
+func (w *myWorkers) register() string {
 	args := RegisterArgs{}
 	reply := RegisterReply{}
 
@@ -46,7 +46,7 @@ func (w *myworker) register() string {
 }
 
 // Report the status of the worker and task to the coordinator
-func (w *myworker) AskForTask() {
+func (w *myWorkers) AskForTask() {
 	// lock for status race condition
 	w.mutex.Lock()
 	args := AskForTaskArgs{
@@ -71,7 +71,7 @@ func (w *myworker) AskForTask() {
 	w.pendingTasks.Enqueue(reply.Task)
 }
 
-func (w *myworker) DoTask() {
+func (w *myWorkers) DoTask() {
 	for {
 		task := w.pendingTasks.Dequeue()
 		if task == nil {
@@ -89,7 +89,7 @@ func (w *myworker) DoTask() {
 }
 
 // Start the worker and keep reporting the status to the coordinator
-func (w *myworker) Start() {
+func (w *myWorkers) Start() {
 	w.workerId = w.register()
 	slog.Info("Registered successfully")
 
@@ -120,7 +120,7 @@ func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
 
 	// Your worker implementation here.
-	worker := myworker{
+	worker := myWorkers{
 		status:     Idle,
 		mapFunc:    mapf,
 		reduceFunc: reducef,
