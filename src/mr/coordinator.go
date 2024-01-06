@@ -68,7 +68,6 @@ func (c *Coordinator) AskForTask(args *AskForTaskArgs, reply *AskForTaskReply) e
 func (c *Coordinator) auditWorkerStatus() {
 	for _, worker := range c.workers.Values() {
 		if time.Now().Unix()-worker.lastPingTime > c.keepAliveTheshold {
-			// Update the status of the worker to lost
 			worker.status = Lost
 			c.workers.Put(worker.id, worker)
 		}
@@ -166,7 +165,7 @@ func createTasks(files []string, nReduce int) (*utils.SafeMap[Task], *utils.Safe
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	mapTasks, reduceTasks := createTasks(files, nReduce)
 	c := Coordinator{
-		workers:           &utils.SafeMap[worker]{},
+		workers:           utils.NewSafeMap[worker](),
 		mapTasks:          mapTasks,
 		reduceTasks:       reduceTasks,
 		keepAliveTheshold: 60,
