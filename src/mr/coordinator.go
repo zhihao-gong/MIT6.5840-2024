@@ -18,8 +18,8 @@ import (
 type Coordinator struct {
 	workers *utils.SafeMap[worker]
 
-	mapTasks    *utils.SafeMap[Task]
-	reduceTasks *utils.SafeMap[Task]
+	mapTasks    *TaskSet
+	reduceTasks *TaskSet
 
 	currPhase Phase
 
@@ -36,9 +36,9 @@ func (c *Coordinator) Register(args *RegisterArgs, reply *RegisterReply) error {
 		status:       Idle,
 	})
 
-	reply.Code = 0
+	reply.result.Code = 0
 	reply.WorkerId = assignedId
-	reply.Message = "Registered"
+	reply.result.Message = "Registered"
 
 	return nil
 }
@@ -47,21 +47,29 @@ func (c *Coordinator) Register(args *RegisterArgs, reply *RegisterReply) error {
 func (c *Coordinator) AskForTask(args *AskForTaskArgs, reply *AskForTaskReply) error {
 	worker, ok := c.workers.Get(args.WorkerId)
 	if !ok {
-		reply.Code = 1
-		reply.Message = "Worker not found"
+		reply.result.Code = 1
+		reply.result.Message = "Worker not found"
 		return nil
 	}
 
 	worker.lastPingTime = time.Now().Unix()
-	worker.status = args.Status
 	c.workers.Put(args.WorkerId, worker)
 
-	reply.Code = 0
-	reply.Message = "Reported"
+	reply.result.Code = 0
+	reply.result.Message = "Reported"
 
-	// TODO: Assign task
+	reply.Task = *c.scheduleTask(args.WorkerId)
 
 	return nil
+}
+
+// Schedule a task to a worker
+func (c *Coordinator) scheduleTask(workerId string) *Task {
+	if c.currPhase == MapPhaseType {
+		return c.mapTasks.Get(workerId)
+	} else {
+		return c.reduceTasks.Get(workerId)
+	}
 }
 
 // Check if a worker is lost of connection, reassigned the task if appropriate
@@ -166,8 +174,8 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	mapTasks, reduceTasks := createTasks(files, nReduce)
 	c := Coordinator{
 		workers:           utils.NewSafeMap[worker](),
-		mapTasks:          mapTasks,
-		reduceTasks:       reduceTasks,
+		mapTasks:          NewTaskSet(int64(mapTasks.Len()), mapTasks),
+		reduceTasks:       NewTaskSet(int64(reduceTasks.Len()), reduceTasks),
 		keepAliveTheshold: 60,
 	}
 

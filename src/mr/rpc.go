@@ -9,24 +9,47 @@ import (
 	"strconv"
 )
 
+type RpcStatusCode int
+
+const (
+	Success RpcStatusCode = iota
+	Error
+	NotFound
+	Unauthorized
+	Forbidden
+)
+
+type RpcResult struct {
+	Code    RpcStatusCode
+	Message string
+}
+
 type RegisterArgs struct {
 }
 
 type RegisterReply struct {
-	Code     int
 	WorkerId string
-	Message  string
+	result   RpcResult
+}
+
+type PingArgs struct {
+	WorkerId string
+}
+
+type PingReply struct {
+	result RpcResult
 }
 
 type AskForTaskArgs struct {
 	WorkerId string
-	Status   WorkerStatus
+	// Ask for task when last task is completed
+	// Report last complated task id
+	LastCompletedTaskId string
 }
 
 type AskForTaskReply struct {
-	Code    int
-	Message string
-	Task    Task
+	Task   Task
+	result RpcResult
 }
 
 // Cook up a unique-ish UNIX-domain socket name

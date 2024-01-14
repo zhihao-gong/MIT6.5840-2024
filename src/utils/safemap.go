@@ -26,6 +26,15 @@ func (sm *SafeMap[T]) Get(key string) (T, bool) {
 	return value, ok
 }
 
+func (sm *SafeMap[T]) GetOne() *T {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	for _, value := range sm.m {
+		return &value
+	}
+	return nil
+}
+
 func (sm *SafeMap[T]) Delete(key string) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
