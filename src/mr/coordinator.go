@@ -2,6 +2,7 @@ package mr
 
 import (
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/rpc"
@@ -29,7 +30,6 @@ type Coordinator struct {
 // RegisterWorker generates a unique ID for a new worker, assigns it to the worker and returns the ID
 func (c *Coordinator) Register(args *RegisterArgs, reply *RegisterReply) error {
 	assignedId := uuid.New().String()
-
 	c.workers.Put(assignedId, worker{
 		id:           assignedId,
 		lastPingTime: time.Now().Unix(),
@@ -43,22 +43,37 @@ func (c *Coordinator) Register(args *RegisterArgs, reply *RegisterReply) error {
 	return nil
 }
 
-// AskForTask is called by worker to report the status of the worker(keep alive) and assign a task if appropriate
+// AskForTask is called by worker for a task if appropriate
 func (c *Coordinator) AskForTask(args *AskForTaskArgs, reply *AskForTaskReply) error {
-	worker, ok := c.workers.Get(args.WorkerId)
+	_, ok := c.workers.Get(args.WorkerId)
 	if !ok {
 		reply.result.Code = 1
 		reply.result.Message = "Worker not found"
 		return nil
 	}
 
+	reply.Task = *c.scheduleTask(args.WorkerId)
+
+	return nil
+}
+
+// Ping is called by worker to report the status of the worker(keep alive)
+func (c *Coordinator) Ping(args *PingArgs, reply *PingReply) error {
+	worker, ok := c.workers.Get(args.WorkerId)
+	if !ok {
+		reply.Result.Code = 1
+		reply.Result.Message = "Worker not found"
+		slog.Error("Worker not found: " + args.WorkerId)
+		return nil
+	}
+
+	slog.Info("Ping from worker:" + args.WorkerId)
+
 	worker.lastPingTime = time.Now().Unix()
 	c.workers.Put(args.WorkerId, worker)
 
-	reply.result.Code = 0
-	reply.result.Message = "Reported"
-
-	reply.Task = *c.scheduleTask(args.WorkerId)
+	reply.Result.Code = 0
+	reply.Result.Message = "Reported"
 
 	return nil
 }

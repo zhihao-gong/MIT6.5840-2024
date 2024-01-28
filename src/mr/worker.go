@@ -37,7 +37,7 @@ func (w *myWorkers) register() string {
 		os.Exit(1)
 	}
 	if reply.result.Code != 0 {
-		slog.Error("Register error: ", reply.result.Message)
+		slog.Error("Register error: " + reply.result.Message)
 		os.Exit(1)
 	}
 
@@ -56,8 +56,8 @@ func (w *myWorkers) ping() {
 		slog.Error("Ping error while rpc")
 		return
 	}
-	if reply.result.Code != 0 {
-		slog.Error("Ping error: ", reply.result.Message)
+	if reply.Result.Code != 0 {
+		slog.Error("Ping error: " + reply.Result.Message)
 		return
 	}
 }
@@ -80,7 +80,7 @@ func (w *myWorkers) AskForTask() {
 	}
 
 	if reply.result.Code != 0 {
-		slog.Error("AskForTask error: ", reply.result.Message)
+		slog.Error("AskForTask error: " +  reply.result.Message)
 		return
 	}
 

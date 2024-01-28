@@ -37,7 +37,7 @@ type PingArgs struct {
 }
 
 type PingReply struct {
-	result RpcResult
+	Result RpcResult
 }
 
 type AskForTaskArgs struct {
