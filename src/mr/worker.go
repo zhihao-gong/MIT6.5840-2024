@@ -22,7 +22,6 @@ type myWorkers struct {
 	reduceFunc func(string, []string) string
 
 	pendingTasks utils.SafeQueue[Task]
-	finishedTask utils.SafeQueue[Task]
 }
 
 // Register worker on the corrdinator side and get the assigned id
@@ -37,12 +36,30 @@ func (w *myWorkers) register() string {
 		slog.Error("Register error while rpc")
 		os.Exit(1)
 	}
-	if reply.Code != 0 {
-		slog.Error("Register error: ", reply.Message)
+	if reply.result.Code != 0 {
+		slog.Error("Register error: " + reply.result.Message)
 		os.Exit(1)
 	}
 
 	return reply.WorkerId
+}
+
+// Ping the coordinator to report the aliveness of the worker
+func (w *myWorkers) ping() {
+	args := PingArgs{
+		WorkerId: w.workerId,
+	}
+	reply := PingReply{}
+
+	ok := call("Coordinator.Ping", &args, &reply)
+	if !ok {
+		slog.Error("Ping error while rpc")
+		return
+	}
+	if reply.Result.Code != 0 {
+		slog.Error("Ping error: " + reply.Result.Message)
+		return
+	}
 }
 
 // Report the status of the worker and task to the coordinator
@@ -51,7 +68,6 @@ func (w *myWorkers) AskForTask() {
 	w.mutex.Lock()
 	args := AskForTaskArgs{
 		WorkerId: w.workerId,
-		Status:   w.status,
 	}
 	w.mutex.Unlock()
 
@@ -63,8 +79,8 @@ func (w *myWorkers) AskForTask() {
 		return
 	}
 
-	if reply.Code != 0 {
-		slog.Error("AskForTask error: ", reply.Message)
+	if reply.result.Code != 0 {
+		slog.Error("AskForTask error: " +  reply.result.Message)
 		return
 	}
 
@@ -81,9 +97,12 @@ func (w *myWorkers) DoTask() {
 
 		switch task.Type {
 		case MapTaskType:
-
+			for _, file := range task.InputFiles {
+				slog.Info(file)
+			}
 		case ReduceTaskType:
 			// w.reduceFunc(task.Input, content)
+
 		}
 	}
 }
@@ -98,10 +117,12 @@ func (w *myWorkers) Start() {
 		for {
 			select {
 			case <-timer.C:
-				w.AskForTask()
+				w.ping()
 			}
 		}
 	}()
+
+	go w.DoTask()
 
 	// Block forever
 	select {}

@@ -1,5 +1,12 @@
 package mr
 
+import (
+	"sync"
+	"time"
+
+	"6.5840/utils"
+)
+
 // Map functions return a slice of KeyValue.
 type KeyValue struct {
 	Key   string
@@ -28,6 +35,9 @@ type Task struct {
 	InputFiles  []string
 	OutputFiles []string
 	Type        TaskType
+
+	AssignedWorkerId string
+	AssignedTime     int64
 }
 
 type worker struct {
@@ -42,3 +52,41 @@ const (
 	MapPhaseType Phase = iota
 	ReducePhaseType
 )
+
+type TaskSet struct {
+	total int64
+
+	mutex    sync.RWMutex
+	pending  *utils.SafeMap[Task]
+	assigned *utils.SafeMap[Task]
+	finished *utils.SafeMap[Task]
+}
+
+// init a TaskSet
+func NewTaskSet(total int64, pending *utils.SafeMap[Task]) *TaskSet {
+	return &TaskSet{
+		total:    total,
+		pending:  pending,
+		assigned: utils.NewSafeMap[Task](),
+		finished: utils.NewSafeMap[Task](),
+	}
+}
+
+// Get a task from the pending queue
+func (ts *TaskSet) Get(workerId string) *Task {
+	ts.mutex.Lock()
+	defer ts.mutex.Unlock()
+
+	task := ts.pending.GetOne()
+	if task == nil {
+		return nil
+	}
+
+	task.AssignedWorkerId = workerId
+	task.AssignedTime = time.Now().Unix()
+
+	ts.pending.Delete(task.Id)
+	ts.assigned.Put(task.Id, *task)
+
+	return task
+}
