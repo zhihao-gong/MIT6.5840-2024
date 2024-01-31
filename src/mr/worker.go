@@ -110,7 +110,7 @@ func (w *myWorkers) DoTask() {
 // Start the worker and keep reporting the status to the coordinator
 func (w *myWorkers) Start() {
 	w.workerId = w.register()
-	slog.Info("Registered successfully")
+	slog.Info("Registered successfully with assigned id: " + w.workerId)
 
 	timer := time.NewTicker(10 * time.Second)
 	go func() {
