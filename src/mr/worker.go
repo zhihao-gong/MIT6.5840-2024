@@ -80,7 +80,7 @@ func (w *myWorkers) AskForTask() {
 	}
 
 	if reply.result.Code != 0 {
-		slog.Error("AskForTask error: " +  reply.result.Message)
+		slog.Error("AskForTask error: " + reply.result.Message)
 		return
 	}
 

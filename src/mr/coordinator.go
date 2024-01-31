@@ -17,7 +17,7 @@ import (
 
 // Coordinator holds all the information about the current state of the map reduce job
 type Coordinator struct {
-	workers *utils.SafeMap[worker]
+	workers *WorkerSet
 
 	mapTasks    *TaskSet
 	reduceTasks *TaskSet
@@ -30,7 +30,7 @@ type Coordinator struct {
 // RegisterWorker generates a unique ID for a new worker, assigns it to the worker and returns the ID
 func (c *Coordinator) Register(args *RegisterArgs, reply *RegisterReply) error {
 	assignedId := uuid.New().String()
-	c.workers.Put(assignedId, worker{
+	c.workers.mapping.Put(assignedId, worker{
 		id:           assignedId,
 		lastPingTime: time.Now().Unix(),
 		status:       Idle,
@@ -45,7 +45,7 @@ func (c *Coordinator) Register(args *RegisterArgs, reply *RegisterReply) error {
 
 // AskForTask is called by worker for a task if appropriate
 func (c *Coordinator) AskForTask(args *AskForTaskArgs, reply *AskForTaskReply) error {
-	_, ok := c.workers.Get(args.WorkerId)
+	_, ok := c.workers.mapping.Get(args.WorkerId)
 	if !ok {
 		reply.result.Code = 1
 		reply.result.Message = "Worker not found"
@@ -59,7 +59,10 @@ func (c *Coordinator) AskForTask(args *AskForTaskArgs, reply *AskForTaskReply) e
 
 // Ping is called by worker to report the status of the worker(keep alive)
 func (c *Coordinator) Ping(args *PingArgs, reply *PingReply) error {
-	worker, ok := c.workers.Get(args.WorkerId)
+	c.workers.mutex.Lock()
+	defer c.workers.mutex.Unlock()
+
+	worker, ok := c.workers.mapping.Get(args.WorkerId)
 	if !ok {
 		reply.Result.Code = 1
 		reply.Result.Message = "Worker not found"
@@ -70,7 +73,10 @@ func (c *Coordinator) Ping(args *PingArgs, reply *PingReply) error {
 	slog.Info("Ping from worker:" + args.WorkerId)
 
 	worker.lastPingTime = time.Now().Unix()
-	c.workers.Put(args.WorkerId, worker)
+	if worker.status == Lost {
+		worker.status = Idle
+	}
+	c.workers.mapping.Put(args.WorkerId, worker)
 
 	reply.Result.Code = 0
 	reply.Result.Message = "Reported"
@@ -89,10 +95,12 @@ func (c *Coordinator) scheduleTask(workerId string) *Task {
 
 // Check if a worker is lost of connection, reassigned the task if appropriate
 func (c *Coordinator) auditWorkerStatus() {
-	for _, worker := range c.workers.Values() {
+	c.workers.mutex.Lock()
+	defer c.workers.mutex.Unlock()
+	for _, worker := range c.workers.mapping.Values() {
 		if time.Now().Unix()-worker.lastPingTime > c.keepAliveTheshold {
 			worker.status = Lost
-			c.workers.Put(worker.id, worker)
+			c.workers.mapping.Put(worker.id, worker)
 		}
 	}
 }
@@ -188,7 +196,7 @@ func createTasks(files []string, nReduce int) (*utils.SafeMap[Task], *utils.Safe
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	mapTasks, reduceTasks := createTasks(files, nReduce)
 	c := Coordinator{
-		workers:           utils.NewSafeMap[worker](),
+		workers:           NewWorkerSet(),
 		mapTasks:          NewTaskSet(int64(mapTasks.Len()), mapTasks),
 		reduceTasks:       NewTaskSet(int64(reduceTasks.Len()), reduceTasks),
 		keepAliveTheshold: 60,

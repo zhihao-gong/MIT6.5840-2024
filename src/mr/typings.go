@@ -62,7 +62,6 @@ type TaskSet struct {
 	finished *utils.SafeMap[Task]
 }
 
-// init a TaskSet
 func NewTaskSet(total int64, pending *utils.SafeMap[Task]) *TaskSet {
 	return &TaskSet{
 		total:    total,
@@ -89,4 +88,15 @@ func (ts *TaskSet) Get(workerId string) *Task {
 	ts.assigned.Put(task.Id, *task)
 
 	return task
+}
+
+type WorkerSet struct {
+	mutex   sync.RWMutex
+	mapping *utils.SafeMap[worker]
+}
+
+func NewWorkerSet() *WorkerSet {
+	return &WorkerSet{
+		mapping: utils.NewSafeMap[worker](),
+	}
 }
