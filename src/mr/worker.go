@@ -64,12 +64,9 @@ func (w *myWorkers) ping() {
 
 // Report the status of the worker and task to the coordinator
 func (w *myWorkers) AskForTask() {
-	// lock for status race condition
-	w.mutex.Lock()
 	args := AskForTaskArgs{
 		WorkerId: w.workerId,
 	}
-	w.mutex.Unlock()
 
 	reply := AskForTaskReply{}
 

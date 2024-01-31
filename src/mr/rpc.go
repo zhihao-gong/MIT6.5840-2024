@@ -42,13 +42,19 @@ type PingReply struct {
 
 type AskForTaskArgs struct {
 	WorkerId string
-	// Ask for task when last task is completed
-	// Report last complated task id
-	LastCompletedTaskId string
 }
 
 type AskForTaskReply struct {
 	Task   Task
+	result RpcResult
+}
+
+type ReportFinishedTaskArgs struct {
+	WorkerId string
+	TaskId   string
+}
+
+type ReportFinishedTaskReply struct {
 	result RpcResult
 }
 
