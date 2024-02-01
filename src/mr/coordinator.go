@@ -97,6 +97,7 @@ func (c *Coordinator) scheduleTask(workerId string) *Task {
 func (c *Coordinator) auditWorkerStatus() {
 	c.workers.mutex.Lock()
 	defer c.workers.mutex.Unlock()
+
 	for _, worker := range c.workers.mapping.Values() {
 		if time.Now().Unix()-worker.lastPingTime > c.keepAliveTheshold {
 			worker.status = Lost

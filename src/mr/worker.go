@@ -7,25 +7,23 @@ import (
 	"log/slog"
 	"net/rpc"
 	"os"
-	"sync"
 	"time"
 
 	"6.5840/utils"
 )
 
 // Worker is the interface for the worker
-type myWorkers struct {
+type myWorker struct {
 	workerId   string
-	mutex      sync.RWMutex
 	status     WorkerStatus
 	mapFunc    func(string, string) []KeyValue
 	reduceFunc func(string, []string) string
 
-	pendingTasks utils.SafeQueue[Task]
+	pendingTasks utils.SafeQueue[*Task]
 }
 
 // Register worker on the corrdinator side and get the assigned id
-func (w *myWorkers) register() string {
+func (w *myWorker) register() string {
 	args := RegisterArgs{}
 	reply := RegisterReply{}
 
@@ -45,7 +43,7 @@ func (w *myWorkers) register() string {
 }
 
 // Ping the coordinator to report the aliveness of the worker
-func (w *myWorkers) ping() {
+func (w *myWorker) ping() {
 	args := PingArgs{
 		WorkerId: w.workerId,
 	}
@@ -62,8 +60,8 @@ func (w *myWorkers) ping() {
 	}
 }
 
-// Report the status of the worker and task to the coordinator
-func (w *myWorkers) AskForTask() {
+// Ask the coordinator for a task
+func (w *myWorker) askForTask() *Task {
 	args := AskForTaskArgs{
 		WorkerId: w.workerId,
 	}
@@ -73,28 +71,33 @@ func (w *myWorkers) AskForTask() {
 	ok := call("Coordinator.AskForTask", &args, &reply)
 	if !ok {
 		slog.Error("AskForTask error while rpc")
-		return
+		return nil
 	}
 
 	if reply.result.Code != 0 {
 		slog.Error("AskForTask error: " + reply.result.Message)
-		return
+		return nil
 	}
 
-	w.pendingTasks.Enqueue(reply.Task)
+	return &reply.Task
 }
 
-func (w *myWorkers) DoTask() {
+func (w *myWorker) doJob() {
 	for {
 		task := w.pendingTasks.Dequeue()
 		if task == nil {
-			time.Sleep(10 * time.Second)
+			newTask := w.askForTask()
+			if newTask != nil {
+				time.Sleep(1 * time.Second)
+			} else {
+				w.pendingTasks.Enqueue(newTask)
+			}
 			continue
 		}
 
-		switch task.Type {
+		switch (*task).Type {
 		case MapTaskType:
-			for _, file := range task.InputFiles {
+			for _, file := range (*task).InputFiles {
 				slog.Info(file)
 			}
 		case ReduceTaskType:
@@ -105,7 +108,7 @@ func (w *myWorkers) DoTask() {
 }
 
 // Start the worker and keep reporting the status to the coordinator
-func (w *myWorkers) Start() {
+func (w *myWorker) Start() {
 	w.workerId = w.register()
 	slog.Info("Registered successfully with assigned id: " + w.workerId)
 
@@ -119,7 +122,7 @@ func (w *myWorkers) Start() {
 		}
 	}()
 
-	go w.DoTask()
+	go w.doJob()
 
 	// Block forever
 	select {}
@@ -138,7 +141,7 @@ func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
 
 	// Your worker implementation here.
-	worker := myWorkers{
+	worker := myWorker{
 		status:     Idle,
 		mapFunc:    mapf,
 		reduceFunc: reducef,
