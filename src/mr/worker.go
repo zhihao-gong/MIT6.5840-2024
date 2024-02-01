@@ -82,12 +82,13 @@ func (w *myWorker) askForTask() *Task {
 	return &reply.Task
 }
 
+// Loop forever to ask and work on the job assigned from coordinator
 func (w *myWorker) doJob() {
 	for {
 		task := w.pendingTasks.Dequeue()
 		if task == nil {
 			newTask := w.askForTask()
-			if newTask != nil {
+			if newTask == nil {
 				time.Sleep(1 * time.Second)
 			} else {
 				w.pendingTasks.Enqueue(newTask)
@@ -97,13 +98,37 @@ func (w *myWorker) doJob() {
 
 		switch (*task).Type {
 		case MapTaskType:
-			for _, file := range (*task).InputFiles {
-				slog.Info(file)
+			if len((*task).InputFiles) != 1 {
+				panic("Map task should have only one input file")
 			}
+			inputFile := (*task).InputFiles[0]
+			// FIXME: Handle filenotfound exception
+			content, _ := utils.ReadFile(inputFile)
+			kva := w.mapFunc(inputFile, content)
 		case ReduceTaskType:
 			// w.reduceFunc(task.Input, content)
 
 		}
+	}
+}
+
+// Report finished task to the coordinator
+func (w *myWorker) ReportFinishedTask(taskId string) {
+	args := ReportFinishedTaskArgs{
+		WorkerId: w.workerId,
+		TaskId:   taskId,
+	}
+	reply := ReportFinishedTaskReply{}
+
+	// TODO: Add retry logics
+	ok := call("Coordinator.ReportFinishedTask", &args, &reply)
+	if !ok {
+		slog.Error("ReportFinishedTask error while rpc")
+		return
+	}
+	if reply.result.Code != 0 {
+		slog.Error("ReportFinishedTask error: " + reply.result.Message)
+		return
 	}
 }
 
