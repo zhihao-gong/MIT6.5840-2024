@@ -29,15 +29,28 @@ const (
 	ReduceTaskType
 )
 
-// Task is the unit of work for the worker
-type Task struct {
-	Id          string
-	InputFiles  []string
-	OutputFiles []string
-	Type        TaskType
+type mapTaskSpecs struct {
+	inputFile   string
+	outputFiles []string
+}
 
-	AssignedWorkerId string
-	AssignedTime     int64
+type reduceTaskSpecs struct {
+	inputFiles []string
+	outputFile string
+}
+
+// Task is the unit of work for the worker
+type task struct {
+	id string
+
+	// either mapSpecs or reduceSpecs will be set depend on the taskType
+	// but not both
+	taskType    TaskType
+	mapSpecs    mapTaskSpecs
+	reduceSpecs reduceTaskSpecs
+
+	assignedWorkerId string
+	assignedTime     int64
 }
 
 type worker struct {
@@ -57,22 +70,22 @@ type TaskSet struct {
 	total int64
 
 	mutex    sync.RWMutex
-	pending  *utils.SafeMap[Task]
-	assigned *utils.SafeMap[Task]
-	finished *utils.SafeMap[Task]
+	pending  *utils.SafeMap[task]
+	assigned *utils.SafeMap[task]
+	finished *utils.SafeMap[task]
 }
 
-func NewTaskSet(total int64, pending *utils.SafeMap[Task]) *TaskSet {
+func NewTaskSet(total int64, pending *utils.SafeMap[task]) *TaskSet {
 	return &TaskSet{
 		total:    total,
 		pending:  pending,
-		assigned: utils.NewSafeMap[Task](),
-		finished: utils.NewSafeMap[Task](),
+		assigned: utils.NewSafeMap[task](),
+		finished: utils.NewSafeMap[task](),
 	}
 }
 
 // Get a task from the pending queue
-func (ts *TaskSet) Get(workerId string) *Task {
+func (ts *TaskSet) Get(workerId string) *task {
 	ts.mutex.Lock()
 	defer ts.mutex.Unlock()
 
@@ -81,11 +94,11 @@ func (ts *TaskSet) Get(workerId string) *Task {
 		return nil
 	}
 
-	task.AssignedWorkerId = workerId
-	task.AssignedTime = time.Now().Unix()
+	task.assignedWorkerId = workerId
+	task.assignedTime = time.Now().Unix()
 
-	ts.pending.Delete(task.Id)
-	ts.assigned.Put(task.Id, *task)
+	ts.pending.Delete(task.id)
+	ts.assigned.Put(task.id, *task)
 
 	return task
 }

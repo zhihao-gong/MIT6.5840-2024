@@ -85,7 +85,7 @@ func (c *Coordinator) Ping(args *PingArgs, reply *PingReply) error {
 }
 
 // Schedule a task to a worker
-func (c *Coordinator) scheduleTask(workerId string) *Task {
+func (c *Coordinator) scheduleTask(workerId string) *task {
 	if c.currPhase == MapPhaseType {
 		return c.mapTasks.Get(workerId)
 	} else {
@@ -147,8 +147,8 @@ func (c *Coordinator) Done() bool {
 }
 
 // create tasks based on input files
-func createTasks(files []string, nReduce int) (*utils.SafeMap[Task], *utils.SafeMap[Task]) {
-	mapTasks := utils.NewSafeMap[Task]()
+func createTasks(files []string, nReduce int) (*utils.SafeMap[task], *utils.SafeMap[task]) {
+	mapTasks := utils.NewSafeMap[task]()
 
 	for _, file := range files {
 		id := uuid.New().String()
@@ -159,15 +159,17 @@ func createTasks(files []string, nReduce int) (*utils.SafeMap[Task], *utils.Safe
 		for i := 0; i < nReduce; i++ {
 			outputFiles[i] = filepath.Join(os.TempDir(), "mr-"+id+"-"+strconv.Itoa(i))
 		}
-		mapTasks.Put(id, Task{
-			Id:          id,
-			Type:        MapTaskType,
-			InputFiles:  InputFiles,
-			OutputFiles: outputFiles,
+		mapTasks.Put(id, task{
+			id:       id,
+			taskType: MapTaskType,
+			mapSpecs: mapTaskSpecs{
+				inputFile:   file,
+				outputFiles: outputFiles,
+			},
 		})
 	}
 
-	reduceTasks := utils.NewSafeMap[Task]()
+	reduceTasks := utils.NewSafeMap[task]()
 	mapTasksCopy := mapTasks.Copy()
 	for i := 0; i < nReduce; i++ {
 		id := uuid.New().String()
@@ -175,16 +177,17 @@ func createTasks(files []string, nReduce int) (*utils.SafeMap[Task], *utils.Safe
 		j := 0
 		InputFiles := make([]string, len(mapTasksCopy))
 		for _, t := range mapTasksCopy {
-			InputFiles[j] = t.OutputFiles[i]
+			InputFiles[j] = t.mapSpecs.outputFiles[i]
 			j++
 		}
 
-		outputFiles := []string{filepath.Join(os.TempDir(), "mr-out-"+strconv.Itoa(i))}
-		reduceTasks.Put(id, Task{
-			Id:          id,
-			Type:        ReduceTaskType,
-			InputFiles:  InputFiles,
-			OutputFiles: outputFiles,
+		reduceTasks.Put(id, task{
+			id:       id,
+			taskType: ReduceTaskType,
+			reduceSpecs: reduceTaskSpecs{
+				inputFiles: InputFiles,
+				outputFile: filepath.Join(os.TempDir(), "mr-out-"+strconv.Itoa(i)),
+			},
 		})
 	}
 
