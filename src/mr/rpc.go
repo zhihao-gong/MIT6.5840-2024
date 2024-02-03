@@ -45,7 +45,7 @@ type AskForTaskArgs struct {
 }
 
 type AskForTaskReply struct {
-	Task   Task
+	Task   task
 	result RpcResult
 }
 

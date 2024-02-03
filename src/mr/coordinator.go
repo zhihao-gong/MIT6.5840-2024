@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"net/rpc"
 	"os"
-	"path/filepath"
-	"strconv"
 	"time"
 
 	"6.5840/utils"
@@ -146,8 +144,8 @@ func (c *Coordinator) Done() bool {
 	return ret
 }
 
-// create tasks based on input files
-func createTasks(files []string, nReduce int) (*utils.SafeMap[task], *utils.SafeMap[task]) {
+// create map tasks based on input files
+func initMapTasks(files []string, nReduce int) *utils.SafeMap[task] {
 	mapTasks := utils.NewSafeMap[task]()
 
 	for _, file := range files {
@@ -155,54 +153,24 @@ func createTasks(files []string, nReduce int) (*utils.SafeMap[task], *utils.Safe
 		InputFiles := make([]string, 1)
 		InputFiles[0] = file
 
-		outputFiles := make([]string, nReduce)
-		for i := 0; i < nReduce; i++ {
-			outputFiles[i] = filepath.Join(os.TempDir(), "mr-"+id+"-"+strconv.Itoa(i))
-		}
 		mapTasks.Put(id, task{
 			id:       id,
 			taskType: MapTaskType,
-			mapSpecs: mapTaskSpecs{
-				inputFile:   file,
-				outputFiles: outputFiles,
-			},
+			inputs:   InputFiles,
 		})
 	}
 
-	reduceTasks := utils.NewSafeMap[task]()
-	mapTasksCopy := mapTasks.Copy()
-	for i := 0; i < nReduce; i++ {
-		id := uuid.New().String()
-
-		j := 0
-		InputFiles := make([]string, len(mapTasksCopy))
-		for _, t := range mapTasksCopy {
-			InputFiles[j] = t.mapSpecs.outputFiles[i]
-			j++
-		}
-
-		reduceTasks.Put(id, task{
-			id:       id,
-			taskType: ReduceTaskType,
-			reduceSpecs: reduceTaskSpecs{
-				inputFiles: InputFiles,
-				outputFile: filepath.Join(os.TempDir(), "mr-out-"+strconv.Itoa(i)),
-			},
-		})
-	}
-
-	return mapTasks, reduceTasks
+	return mapTasks
 }
 
 // create a Coordinator.
 // main/mrcoordinator.go calls this function.
 // nReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
-	mapTasks, reduceTasks := createTasks(files, nReduce)
+	mapTasks := initMapTasks(files, nReduce)
 	c := Coordinator{
 		workers:           NewWorkerSet(),
 		mapTasks:          NewTaskSet(int64(mapTasks.Len()), mapTasks),
-		reduceTasks:       NewTaskSet(int64(reduceTasks.Len()), reduceTasks),
 		keepAliveTheshold: 60,
 	}
 

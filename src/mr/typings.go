@@ -29,26 +29,14 @@ const (
 	ReduceTaskType
 )
 
-type mapTaskSpecs struct {
-	inputFile   string
-	outputFiles []string
-}
-
-type reduceTaskSpecs struct {
-	inputFiles []string
-	outputFile string
-}
-
 // Task is the unit of work for the worker
 type task struct {
 	id string
 
-	// either mapSpecs or reduceSpecs will be set depend on the taskType
-	// but not both
-	taskType    TaskType
-	mapSpecs    mapTaskSpecs
-	reduceSpecs reduceTaskSpecs
+	taskType TaskType
+	inputs   []string
 
+	nReduce          int
 	assignedWorkerId string
 	assignedTime     int64
 }
