@@ -9,6 +9,8 @@ import (
 	"net/rpc"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"6.5840/utils"
@@ -105,6 +107,8 @@ func (w *myWorker) doJob() {
 			w.ReportTaskExecution((*task).Id, err == nil)
 		case ReduceTaskType:
 			slog.Info("Handling reduce task: " + (*task).Id)
+			err := w.handleReduceTask(*task)
+			w.ReportTaskExecution((*task).Id, err == nil)
 		}
 	}
 }
@@ -151,6 +155,55 @@ func (w *myWorker) handleMapTask(task *task) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// handle reduce task
+func (w *myWorker) handleReduceTask(task *task) error {
+
+	// read all intermediate files
+	intermediate := make([]KeyValue, 0)
+	for _, inputFile := range (*task).Inputs {
+		content, err := utils.ReadFile(inputFile)
+		if err != nil {
+			return err
+		}
+
+		var data []KeyValue
+		err = json.Unmarshal([]byte(content), &data)
+		if err != nil {
+			return err
+		}
+		intermediate = append(intermediate, data...)
+	}
+
+	sort.Sort(byKey(intermediate))
+
+	// group by key and call reduce func
+	i := 0
+	outputs := make([]string, 0)
+	for i < len(intermediate) {
+		j := i + 1
+		for j < len(intermediate) && intermediate[j].Key == intermediate[i].Key {
+			j++
+		}
+		values := []string{}
+		for k := i; k < j; k++ {
+			values = append(values, intermediate[k].Value)
+		}
+		ret := w.reduceFunc(intermediate[i].Key, values)
+
+		line := fmt.Sprintf("%v %v\n", intermediate[i].Key, ret)
+		outputs = append(outputs, line)
+		i = j
+	}
+
+	outputFile := fmt.Sprintf("mr-out-%s", (*task).Id)
+	err := utils.WriteFile(outputFile, []byte(strings.Join(outputs, "")))
+	if err != nil {
+		return err
 	}
 
 	return nil
