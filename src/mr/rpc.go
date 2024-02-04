@@ -49,13 +49,14 @@ type AskForTaskReply struct {
 	result RpcResult
 }
 
-type ReportFinishedTaskArgs struct {
-	WorkerId string
-	TaskId   string
+type ReportTaskExecutionArgs struct {
+	WorkerId       string
+	TaskId         string
+	ExecuteSuccess bool
 }
 
-type ReportFinishedTaskReply struct {
-	result RpcResult
+type ReportTaskExecutionReply struct {
+	Result RpcResult
 }
 
 // Cook up a unique-ish UNIX-domain socket name

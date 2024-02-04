@@ -98,17 +98,13 @@ func (w *myWorker) doJob() {
 			continue
 		}
 
-		slog.Info("Handling task: " + (*task).Id)
 		switch (*task).TaskType {
 		case MapTaskType:
+			slog.Info("Handling map task: " + (*task).Id)
 			err := w.handleMapTask(*task)
-			if err != nil {
-
-			} else {
-
-			}
+			w.ReportTaskExecution((*task).Id, err == nil)
 		case ReduceTaskType:
-
+			slog.Info("Handling reduce task: " + (*task).Id)
 		}
 	}
 }
@@ -151,7 +147,6 @@ func (w *myWorker) handleMapTask(task *task) error {
 			return err
 		}
 
-		slog.Info("Writing intermediate file: " + outputFile)
 		err = utils.WriteFile(outputFile, data)
 		if err != nil {
 			return err
@@ -161,22 +156,23 @@ func (w *myWorker) handleMapTask(task *task) error {
 	return nil
 }
 
-// Report finished task to the coordinator
-func (w *myWorker) ReportFinishedTask(taskId string) {
-	args := ReportFinishedTaskArgs{
-		WorkerId: w.workerId,
-		TaskId:   taskId,
+// Report task execution status to the coordinator
+func (w *myWorker) ReportTaskExecution(taskId string, success bool) {
+	args := ReportTaskExecutionArgs{
+		WorkerId:       w.workerId,
+		TaskId:         taskId,
+		ExecuteSuccess: success,
 	}
-	reply := ReportFinishedTaskReply{}
+	reply := ReportTaskExecutionReply{}
 
 	// TODO: Add retry logics
-	ok := call("Coordinator.ReportFinishedTask", &args, &reply)
+	ok := call("Coordinator.ReportTaskExecution", &args, &reply)
 	if !ok {
-		slog.Error("ReportFinishedTask error while rpc")
+		slog.Error("ReportTaskExecution error while rpc")
 		return
 	}
-	if reply.result.Code != 0 {
-		slog.Error("ReportFinishedTask error: " + reply.result.Message)
+	if reply.Result.Code != 0 {
+		slog.Error("ReportTaskExecution error: " + reply.Result.Message)
 		return
 	}
 }

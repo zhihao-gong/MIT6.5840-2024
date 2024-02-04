@@ -74,7 +74,7 @@ func NewTaskSet(total int64, pending *utils.SafeMap[task]) *TaskSet {
 }
 
 // Get a task from the pending queue
-func (ts *TaskSet) GetPendingTask(workerId string) *task {
+func (ts *TaskSet) GetPending(workerId string) *task {
 	ts.mutex.Lock()
 	defer ts.mutex.Unlock()
 
@@ -90,6 +90,38 @@ func (ts *TaskSet) GetPendingTask(workerId string) *task {
 	ts.assigned.Put(task.Id, *task)
 
 	return task
+}
+
+// Set a task to finished
+func (ts *TaskSet) SetFinished(taskId string) bool {
+	ts.mutex.Lock()
+	defer ts.mutex.Unlock()
+
+	task, ok := ts.assigned.Get(taskId)
+	if !ok {
+		return false
+	}
+
+	ts.assigned.Delete(taskId)
+	ts.finished.Put(taskId, task)
+
+	return true
+}
+
+// Set a task to pending
+func (ts *TaskSet) SetPending(taskId string) bool {
+	ts.mutex.Lock()
+	defer ts.mutex.Unlock()
+
+	task, ok := ts.assigned.Get(taskId)
+	if !ok {
+		return false
+	}
+
+	ts.assigned.Delete(taskId)
+	ts.pending.Put(taskId, task)
+
+	return true
 }
 
 type WorkerSet struct {

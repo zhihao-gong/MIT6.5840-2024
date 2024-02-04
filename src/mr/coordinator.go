@@ -55,6 +55,37 @@ func (c *Coordinator) AskForTask(args *AskForTaskArgs, reply *AskForTaskReply) e
 	return nil
 }
 
+// ReportTaskExecution is called by worker to report the status of the task execution
+func (c *Coordinator) ReportTaskExecution(args *ReportTaskExecutionArgs, reply *ReportTaskExecutionReply) error {
+	_, ok := c.workers.mapping.Get(args.WorkerId)
+	if !ok {
+		reply.Result.Code = 1
+		reply.Result.Message = "Worker not found"
+		slog.Error("Worker not found: " + args.WorkerId)
+		return nil
+	}
+
+	if args.ExecuteSuccess {
+		slog.Info("Task finished: " + args.TaskId)
+		ok = c.mapTasks.SetFinished(args.TaskId)
+	} else {
+		slog.Info("Task execution failed and reverted to pending queue: " + args.TaskId)
+		ok = c.mapTasks.SetPending(args.TaskId)
+	}
+
+	if !ok {
+		reply.Result.Code = 1
+		reply.Result.Message = "Task not found"
+		slog.Error("Task not found: " + args.TaskId)
+		return nil
+	}
+
+	reply.Result.Code = 0
+	reply.Result.Message = "Reported"
+
+	return nil
+}
+
 // Ping is called by worker to report the status of the worker(keep alive)
 func (c *Coordinator) Ping(args *PingArgs, reply *PingReply) error {
 	c.workers.mutex.Lock()
@@ -85,9 +116,9 @@ func (c *Coordinator) Ping(args *PingArgs, reply *PingReply) error {
 // Schedule a task to a worker
 func (c *Coordinator) scheduleTask(workerId string) *task {
 	if c.currPhase == MapPhaseType {
-		return c.mapTasks.GetPendingTask(workerId)
+		return c.mapTasks.GetPending(workerId)
 	} else {
-		return c.reduceTasks.GetPendingTask(workerId)
+		return c.reduceTasks.GetPending(workerId)
 	}
 }
 
