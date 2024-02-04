@@ -30,15 +30,16 @@ const (
 )
 
 // Task is the unit of work for the worker
+// Captialize the first letter of the fields to make them public to rpc modules
 type task struct {
-	id string
+	Id string
 
-	taskType TaskType
-	inputs   []string
+	TaskType TaskType
+	Inputs   []string
 
-	nReduce          int
-	assignedWorkerId string
-	assignedTime     int64
+	NReduce          int
+	AssignedWorkerId string
+	AssignedTime     int64
 }
 
 type worker struct {
@@ -82,11 +83,11 @@ func (ts *TaskSet) GetPendingTask(workerId string) *task {
 		return nil
 	}
 
-	task.assignedWorkerId = workerId
-	task.assignedTime = time.Now().Unix()
+	task.AssignedWorkerId = workerId
+	task.AssignedTime = time.Now().Unix()
 
-	ts.pending.Delete(task.id)
-	ts.assigned.Put(task.id, *task)
+	ts.pending.Delete(task.Id)
+	ts.assigned.Put(task.Id, *task)
 
 	return task
 }

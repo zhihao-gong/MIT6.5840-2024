@@ -1,12 +1,14 @@
 package mr
 
 import (
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"log"
 	"log/slog"
 	"net/rpc"
 	"os"
+	"path/filepath"
 	"time"
 
 	"6.5840/utils"
@@ -19,7 +21,7 @@ type myWorker struct {
 	mapFunc    func(string, string) []KeyValue
 	reduceFunc func(string, []string) string
 
-	pendingTasks utils.SafeQueue[*Task]
+	pendingTasks utils.SafeQueue[*task]
 }
 
 // Register worker on the corrdinator side and get the assigned id
@@ -61,7 +63,7 @@ func (w *myWorker) ping() {
 }
 
 // Ask the coordinator for a task
-func (w *myWorker) askForTask() *Task {
+func (w *myWorker) askForTask() *task {
 	args := AskForTaskArgs{
 		WorkerId: w.workerId,
 	}
@@ -96,20 +98,67 @@ func (w *myWorker) doJob() {
 			continue
 		}
 
-		switch (*task).Type {
+		slog.Info("Handling task: " + (*task).Id)
+		switch (*task).TaskType {
 		case MapTaskType:
-			if len((*task).InputFiles) != 1 {
-				panic("Map task should have only one input file")
+			err := w.handleMapTask(*task)
+			if err != nil {
+
+			} else {
+
 			}
-			inputFile := (*task).InputFiles[0]
-			// FIXME: Handle filenotfound exception
-			content, _ := utils.ReadFile(inputFile)
-			kva := w.mapFunc(inputFile, content)
 		case ReduceTaskType:
-			// w.reduceFunc(task.Input, content)
 
 		}
 	}
+}
+
+// handle map task:
+// read inputs, call mapfunc, write output
+func (w *myWorker) handleMapTask(task *task) error {
+	if len((*task).Inputs) != 1 {
+		panic("Map task should have only one input file")
+	}
+
+	inputFile := (*task).Inputs[0]
+	content, err := utils.ReadFile(inputFile)
+	if err != nil {
+		return err
+	}
+
+	kva := w.mapFunc(inputFile, content)
+
+	nReduce := (*task).NReduce
+	intermediate := make([][]KeyValue, nReduce)
+	for i := 0; i < nReduce; i++ {
+		intermediate[i] = make([]KeyValue, 0)
+	}
+	for _, kv := range kva {
+		partition := ihash(kv.Key) % nReduce
+		intermediate[partition] = append(intermediate[partition], kv)
+	}
+
+	for i := 0; i < nReduce; i++ {
+		dir, err := os.MkdirTemp("", "mr-tmp-*")
+		if err != nil {
+			return err
+		}
+		fileName := fmt.Sprintf("mr-%s-%d", (*task).Id, i)
+		outputFile := filepath.Join(dir, fileName)
+
+		data, err := json.MarshalIndent(intermediate[i], "", " ")
+		if err != nil {
+			return err
+		}
+
+		slog.Info("Writing intermediate file: " + outputFile)
+		err = utils.WriteFile(outputFile, data)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Report finished task to the coordinator

@@ -154,9 +154,10 @@ func initMapTasks(files []string, nReduce int) *utils.SafeMap[task] {
 		InputFiles[0] = file
 
 		mapTasks.Put(id, task{
-			id:       id,
-			taskType: MapTaskType,
-			inputs:   InputFiles,
+			Id:       id,
+			TaskType: MapTaskType,
+			Inputs:   InputFiles,
+			NReduce:  nReduce,
 		})
 	}
 
