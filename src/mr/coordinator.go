@@ -85,9 +85,9 @@ func (c *Coordinator) Ping(args *PingArgs, reply *PingReply) error {
 // Schedule a task to a worker
 func (c *Coordinator) scheduleTask(workerId string) *task {
 	if c.currPhase == MapPhaseType {
-		return c.mapTasks.Get(workerId)
+		return c.mapTasks.GetPendingTask(workerId)
 	} else {
-		return c.reduceTasks.Get(workerId)
+		return c.reduceTasks.GetPendingTask(workerId)
 	}
 }
 

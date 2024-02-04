@@ -73,7 +73,7 @@ func NewTaskSet(total int64, pending *utils.SafeMap[task]) *TaskSet {
 }
 
 // Get a task from the pending queue
-func (ts *TaskSet) Get(workerId string) *task {
+func (ts *TaskSet) GetPendingTask(workerId string) *task {
 	ts.mutex.Lock()
 	defer ts.mutex.Unlock()
 
