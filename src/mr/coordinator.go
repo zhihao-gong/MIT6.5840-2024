@@ -62,7 +62,7 @@ func (c *Coordinator) ReportTaskExecution(args *ReportTaskExecutionArgs, reply *
 
 	if args.ExecuteSuccess {
 		slog.Info("Task finished: " + args.TaskId)
-		ok = c.taskManager.setFinished(args.TaskId)
+		ok = c.taskManager.setFinished(args.TaskId, args.Outputs)
 	} else {
 		slog.Info("Task execution failed and reverted to pending queue: " + args.TaskId)
 		ok = c.taskManager.setPending(args.TaskId)
@@ -165,8 +165,8 @@ func (c *Coordinator) Done() bool {
 func initMapTasks(files []string, nReduce int) *utils.SafeMap[task] {
 	mapTasks := utils.NewSafeMap[task]()
 
-	for _, file := range files {
-		id := uuid.New().String()
+	for i, file := range files {
+		id := string(rune(i))
 		InputFiles := make([]string, 1)
 		InputFiles[0] = file
 
@@ -188,7 +188,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	mapTasks := initMapTasks(files, nReduce)
 	c := Coordinator{
 		workers:           NewWorkerSet(),
-		taskManager:       newTaskManager(mapTasks),
+		taskManager:       newTaskManager(nReduce, mapTasks),
 		keepAliveTheshold: 60,
 	}
 

@@ -65,6 +65,7 @@ const (
 )
 
 type TaskManager struct {
+	nReduce     int
 	mapTasks    *TaskSet
 	reduceTasks *TaskSet
 
@@ -72,9 +73,10 @@ type TaskManager struct {
 	mutex sync.RWMutex
 }
 
-func newTaskManager(mapTasks *utils.SafeMap[task]) *TaskManager {
+func newTaskManager(nReduce int, mapTasks *utils.SafeMap[task]) *TaskManager {
 	return &TaskManager{
-		mapTasks:    newTaskSet(int64(mapTasks.Len()), mapTasks),
+		nReduce:     nReduce,
+		mapTasks:    newTaskSet(int(mapTasks.Len()), mapTasks),
 		reduceTasks: nil,
 		phase:       MapPhaseType,
 	}
@@ -91,23 +93,46 @@ func (tm *TaskManager) scheduleTask(workerId string) *task {
 	}
 }
 
-func (tm *TaskManager) setFinished(taskId string) bool {
+func (tm *TaskManager) setFinished(taskId string, outputs []string) bool {
 	tm.mutex.Lock()
 	defer tm.mutex.Unlock()
 
 	if tm.phase == MapPhaseType {
-		success := tm.mapTasks.SetFinished(taskId)
+		success := tm.mapTasks.SetFinished(taskId, outputs)
 		if success && tm.mapTasks.AllFinished() {
 			tm.phase = ReducePhaseType
 		}
+		tm.reduceTasks = newTaskSet(tm.nReduce, tm.initReduceTasks())
 		return success
 	} else {
-		success := tm.reduceTasks.SetFinished(taskId)
+		success := tm.reduceTasks.SetFinished(taskId, outputs)
 		if success && tm.reduceTasks.AllFinished() {
 			tm.phase = DonePhaseType
 		}
 		return success
 	}
+}
+
+func (tm *TaskManager) initReduceTasks() *utils.SafeMap[task] {
+	reduceTasks := utils.NewSafeMap[task]()
+	for i := 0; i < tm.nReduce; i++ {
+		id := string(rune(i))
+
+		j := 0
+		InputFiles := make([]string, tm.mapTasks.total)
+		for _, t := range tm.mapTasks.finished.Values() {
+			InputFiles[j] = t.Outputs[i]
+			j++
+		}
+
+		reduceTasks.Put(id, task{
+			Id:       id,
+			TaskType: ReduceTaskType,
+			Inputs:   InputFiles,
+		})
+	}
+
+	return reduceTasks
 }
 
 func (tm *TaskManager) setPending(taskId string) bool {
@@ -122,14 +147,14 @@ func (tm *TaskManager) setPending(taskId string) bool {
 }
 
 type TaskSet struct {
-	total int64
+	total int
 
 	pending  *utils.SafeMap[task]
 	assigned *utils.SafeMap[task]
 	finished *utils.SafeMap[task]
 }
 
-func newTaskSet(total int64, tasks *utils.SafeMap[task]) *TaskSet {
+func newTaskSet(total int, tasks *utils.SafeMap[task]) *TaskSet {
 	return &TaskSet{
 		total:    total,
 		pending:  tasks,
@@ -138,7 +163,6 @@ func newTaskSet(total int64, tasks *utils.SafeMap[task]) *TaskSet {
 	}
 }
 
-// Get a task from the pending queue
 func (ts *TaskSet) GetPending(workerId string) *task {
 	task := ts.pending.GetOne()
 	if task == nil {
@@ -154,12 +178,13 @@ func (ts *TaskSet) GetPending(workerId string) *task {
 	return task
 }
 
-// Set a task to finished
-func (ts *TaskSet) SetFinished(taskId string) bool {
+func (ts *TaskSet) SetFinished(taskId string, outputs []string) bool {
 	task, ok := ts.assigned.Get(taskId)
 	if !ok {
 		return false
 	}
+
+	task.Outputs = outputs
 
 	ts.assigned.Delete(taskId)
 	ts.finished.Put(taskId, task)
@@ -167,12 +192,14 @@ func (ts *TaskSet) SetFinished(taskId string) bool {
 	return true
 }
 
-// Set a task to pending
 func (ts *TaskSet) SetPending(taskId string) bool {
 	task, ok := ts.assigned.Get(taskId)
 	if !ok {
 		return false
 	}
+
+	task.AssignedTime = 0
+	task.AssignedWorkerId = ""
 
 	ts.assigned.Delete(taskId)
 	ts.pending.Put(taskId, task)
