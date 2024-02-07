@@ -126,11 +126,8 @@ func (c *Coordinator) start() {
 	timer := time.NewTicker(10 * time.Second)
 
 	go func() {
-		for {
-			select {
-			case <-timer.C:
-				c.auditWorkerStatus()
-			}
+		for range timer.C {
+			c.auditWorkerStatus()
 		}
 	}()
 
