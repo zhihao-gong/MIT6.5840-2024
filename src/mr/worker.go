@@ -103,19 +103,19 @@ func (w *myWorker) doJob() {
 		switch (*task).TaskType {
 		case MapTaskType:
 			slog.Info("Handling map task: " + (*task).Id)
-			err := w.handleMapTask(*task)
-			w.ReportTaskExecution((*task).Id, err == nil)
+			outputs, err := w.handleMapTask(*task)
+			w.ReportTaskExecution((*task).Id, err == nil, outputs)
 		case ReduceTaskType:
 			slog.Info("Handling reduce task: " + (*task).Id)
-			err := w.handleReduceTask(*task)
-			w.ReportTaskExecution((*task).Id, err == nil)
+			outputs, err := w.handleReduceTask(*task)
+			w.ReportTaskExecution((*task).Id, err == nil, outputs)
 		}
 	}
 }
 
 // handle map task:
 // read inputs, call mapfunc, write output
-func (w *myWorker) handleMapTask(task *task) error {
+func (w *myWorker) handleMapTask(task *task) ([]string, error) {
 	if len((*task).Inputs) != 1 {
 		panic("Map task should have only one input file")
 	}
@@ -123,7 +123,7 @@ func (w *myWorker) handleMapTask(task *task) error {
 	inputFile := (*task).Inputs[0]
 	content, err := utils.ReadFile(inputFile)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	kva := w.mapFunc(inputFile, content)
@@ -138,43 +138,46 @@ func (w *myWorker) handleMapTask(task *task) error {
 		intermediate[partition] = append(intermediate[partition], kv)
 	}
 
+	results := make([]string, 0)
 	for i := 0; i < nReduce; i++ {
 		dir, err := os.MkdirTemp("", "mr-tmp-*")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		fileName := fmt.Sprintf("mr-%s-%d", (*task).Id, i)
 		outputFile := filepath.Join(dir, fileName)
 
 		data, err := json.MarshalIndent(intermediate[i], "", " ")
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		err = utils.WriteFile(outputFile, data)
 		if err != nil {
-			return err
+			return nil, err
 		}
+
+		results = append(results, outputFile)
 	}
 
-	return nil
+	return results, nil
 }
 
 // handle reduce task
-func (w *myWorker) handleReduceTask(task *task) error {
+func (w *myWorker) handleReduceTask(task *task) ([]string, error) {
 
 	// read all intermediate files
 	intermediate := make([]KeyValue, 0)
 	for _, inputFile := range (*task).Inputs {
 		content, err := utils.ReadFile(inputFile)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		var data []KeyValue
 		err = json.Unmarshal([]byte(content), &data)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		intermediate = append(intermediate, data...)
 	}
@@ -203,18 +206,19 @@ func (w *myWorker) handleReduceTask(task *task) error {
 	outputFile := fmt.Sprintf("mr-out-%s", (*task).Id)
 	err := utils.WriteFile(outputFile, []byte(strings.Join(outputs, "")))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return outputs, nil
 }
 
 // Report task execution status to the coordinator
-func (w *myWorker) ReportTaskExecution(taskId string, success bool) {
+func (w *myWorker) ReportTaskExecution(taskId string, success bool, outputs []string) {
 	args := ReportTaskExecutionArgs{
 		WorkerId:       w.workerId,
 		TaskId:         taskId,
 		ExecuteSuccess: success,
+		Outputs:        outputs,
 	}
 	reply := ReportTaskExecutionReply{}
 

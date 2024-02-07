@@ -15,13 +15,8 @@ import (
 
 // Coordinator holds all the information about the current state of the map reduce job
 type Coordinator struct {
-	workers *WorkerSet
-
-	mapTasks    *TaskSet
-	reduceTasks *TaskSet
-
-	currPhase Phase
-
+	workers           *WorkerSet
+	taskManager       *TaskManager
 	keepAliveTheshold int64
 }
 
@@ -50,7 +45,7 @@ func (c *Coordinator) AskForTask(args *AskForTaskArgs, reply *AskForTaskReply) e
 		return nil
 	}
 
-	reply.Task = *c.scheduleTask(args.WorkerId)
+	reply.Task = *c.taskManager.scheduleTask(args.WorkerId)
 
 	return nil
 }
@@ -67,10 +62,10 @@ func (c *Coordinator) ReportTaskExecution(args *ReportTaskExecutionArgs, reply *
 
 	if args.ExecuteSuccess {
 		slog.Info("Task finished: " + args.TaskId)
-		ok = c.mapTasks.SetFinished(args.TaskId)
+		ok = c.taskManager.setFinished(args.TaskId)
 	} else {
 		slog.Info("Task execution failed and reverted to pending queue: " + args.TaskId)
-		ok = c.mapTasks.SetPending(args.TaskId)
+		ok = c.taskManager.setPending(args.TaskId)
 	}
 
 	if !ok {
@@ -111,15 +106,6 @@ func (c *Coordinator) Ping(args *PingArgs, reply *PingReply) error {
 	reply.Result.Message = "Reported"
 
 	return nil
-}
-
-// Schedule a task to a worker
-func (c *Coordinator) scheduleTask(workerId string) *task {
-	if c.currPhase == MapPhaseType {
-		return c.mapTasks.GetPending(workerId)
-	} else {
-		return c.reduceTasks.GetPending(workerId)
-	}
 }
 
 // Check if a worker is lost of connection, reassigned the task if appropriate
@@ -202,7 +188,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	mapTasks := initMapTasks(files, nReduce)
 	c := Coordinator{
 		workers:           NewWorkerSet(),
-		mapTasks:          NewTaskSet(int64(mapTasks.Len()), mapTasks),
+		taskManager:       newTaskManager(mapTasks),
 		keepAliveTheshold: 60,
 	}
 

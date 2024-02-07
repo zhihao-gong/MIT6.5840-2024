@@ -53,6 +53,7 @@ type ReportTaskExecutionArgs struct {
 	WorkerId       string
 	TaskId         string
 	ExecuteSuccess bool
+	Outputs        []string
 }
 
 type ReportTaskExecutionReply struct {
