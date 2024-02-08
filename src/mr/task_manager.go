@@ -53,7 +53,8 @@ func (tm *TaskManager) setFinished(taskId string, outputs []string, workerId str
 	tm.mutex.Lock()
 	defer tm.mutex.Unlock()
 
-	if tm.phase == MapPhaseType {
+	switch tm.phase {
+	case MapPhaseType:
 		success := tm.mapTasks.SetFinished(taskId, outputs, workerId)
 		if success && tm.mapTasks.AllFinished() {
 			tm.phase = ReducePhaseType
@@ -61,14 +62,14 @@ func (tm *TaskManager) setFinished(taskId string, outputs []string, workerId str
 			slog.Info("Map phase finished, start reduce phase now")
 		}
 		return success
-	} else if tm.phase == ReducePhaseType {
+	case ReducePhaseType:
 		success := tm.reduceTasks.SetFinished(taskId, outputs, workerId)
 		if success && tm.reduceTasks.AllFinished() {
 			tm.phase = DonePhaseType
 			slog.Info("Reduce phase finished, all tasks done")
 		}
 		return success
-	} else {
+	default:
 		return false
 	}
 }
@@ -77,11 +78,12 @@ func (tm *TaskManager) setPending(taskId string, workerId string) bool {
 	tm.mutex.Lock()
 	defer tm.mutex.Unlock()
 
-	if tm.phase == MapPhaseType {
+	switch tm.phase {
+	case MapPhaseType:
 		return tm.mapTasks.SetPending(taskId, workerId)
-	} else if tm.phase == ReducePhaseType {
+	case ReducePhaseType:
 		return tm.reduceTasks.SetPending(taskId, workerId)
-	} else {
+	default:
 		return false
 	}
 }

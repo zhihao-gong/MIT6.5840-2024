@@ -242,11 +242,8 @@ func (w *myWorker) Start() {
 
 	timer := time.NewTicker(10 * time.Second)
 	go func() {
-		for {
-			select {
-			case <-timer.C:
-				w.ping()
-			}
+		for range timer.C {
+			w.ping()
 		}
 	}()
 
