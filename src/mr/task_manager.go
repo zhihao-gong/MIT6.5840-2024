@@ -24,7 +24,9 @@ type task struct {
 }
 
 type TaskManager struct {
-	nReduce     int
+	nReduce           int
+	reassignThreshold int64
+
 	mapTasks    *TaskSet
 	reduceTasks *TaskSet
 
@@ -47,13 +49,17 @@ const (
 	DonePhaseType
 )
 
-func newTaskManager(nReduce int, mapTasks *utils.SafeMap[task]) *TaskManager {
-	return &TaskManager{
-		nReduce:     nReduce,
-		mapTasks:    newTaskSet(int(mapTasks.Len()), mapTasks),
-		reduceTasks: nil,
-		phase:       MapPhaseType,
+func newTaskManager(nReduce int, mapTasks *utils.SafeMap[task], reassignThreshold int64) *TaskManager {
+	ts := &TaskManager{
+		nReduce:           nReduce,
+		mapTasks:          newTaskSet(int(mapTasks.Len()), mapTasks),
+		reduceTasks:       nil,
+		phase:             MapPhaseType,
+		reassignThreshold: reassignThreshold,
 	}
+	ts.audit()
+
+	return ts
 }
 
 func (tm *TaskManager) scheduleTask(workerId string) *task {
@@ -131,6 +137,70 @@ func (tm *TaskManager) initReduceTasks() *utils.SafeMap[task] {
 	return reduceTasks
 }
 
+func (tm *TaskManager) audit() {
+	timer := time.NewTicker(1 * time.Second)
+
+	go func() {
+		for range timer.C {
+			tm.cancelTimeoutTask()
+		}
+	}()
+}
+
+func (tm *TaskManager) cancelTimeoutTask() {
+	now := time.Now().Unix()
+
+	tm.mutex.Lock()
+	defer tm.mutex.Unlock()
+
+	switch tm.phase {
+	case MapPhaseType:
+		for _, t := range tm.mapTasks.assigned.Values() {
+			if now-t.AssignedTime >= tm.reassignThreshold {
+				ok := tm.mapTasks.SetPending(t.Id, "")
+				if !ok {
+					slog.Error("Failed to cancel map task: " + t.Id)
+				}
+			}
+		}
+	case ReducePhaseType:
+		for _, t := range tm.reduceTasks.assigned.Values() {
+			if now-t.AssignedTime >= tm.reassignThreshold {
+				ok := tm.reduceTasks.SetPending(t.Id, "")
+				if !ok {
+					slog.Error("Failed to cancel reduce task: " + t.Id)
+				}
+			}
+		}
+	}
+}
+
+func (tm *TaskManager) cancelTaskForWorker(workerId string) {
+	tm.mutex.Lock()
+	defer tm.mutex.Unlock()
+
+	switch tm.phase {
+	case MapPhaseType:
+		for _, t := range tm.mapTasks.assigned.Values() {
+			if t.AssignedWorkerId == workerId {
+				ok := tm.mapTasks.SetPending(t.Id, workerId)
+				if !ok {
+					slog.Error("Failed to cancel map task: " + t.Id)
+				}
+			}
+		}
+	case ReducePhaseType:
+		for _, t := range tm.reduceTasks.assigned.Values() {
+			if t.AssignedWorkerId == workerId {
+				ok := tm.reduceTasks.SetPending(t.Id, workerId)
+				if !ok {
+					slog.Error("Failed to cancel reduce task: " + t.Id)
+				}
+			}
+		}
+	}
+}
+
 type TaskSet struct {
 	total int
 
@@ -169,7 +239,7 @@ func (ts *TaskSet) SetFinished(taskId string, outputs []string, workerId string)
 		return false
 	}
 
-	if task.AssignedWorkerId != workerId {
+	if workerId != "" && workerId != task.AssignedWorkerId {
 		return false
 	}
 
@@ -187,7 +257,7 @@ func (ts *TaskSet) SetPending(taskId string, workerId string) bool {
 		return false
 	}
 
-	if task.AssignedWorkerId != workerId {
+	if workerId != "" && workerId != task.AssignedWorkerId {
 		return false
 	}
 

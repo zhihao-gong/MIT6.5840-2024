@@ -123,8 +123,11 @@ func (c *Coordinator) auditWorkerStatus() {
 
 	for _, worker := range c.workers.mapping.Values() {
 		if time.Now().Unix()-worker.lastPingTime > c.keepAliveTheshold {
+			slog.Info("Worker lost: " + worker.id + ", canceling tasks")
 			worker.status = Lost
 			c.workers.mapping.Put(worker.id, worker)
+
+			c.taskManager.cancelTaskForWorker(worker.id)
 		}
 	}
 }
@@ -189,7 +192,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	mapTasks := initMapTasks(files, nReduce)
 	c := Coordinator{
 		workers:           NewWorkerSet(),
-		taskManager:       newTaskManager(nReduce, mapTasks),
+		taskManager:       newTaskManager(nReduce, mapTasks, 10),
 		keepAliveTheshold: 60,
 	}
 
