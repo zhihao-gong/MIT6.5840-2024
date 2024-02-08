@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/rpc"
 	"os"
+	"strconv"
 	"time"
 
 	"6.5840/utils"
@@ -45,7 +46,15 @@ func (c *Coordinator) AskForTask(args *AskForTaskArgs, reply *AskForTaskReply) e
 		return nil
 	}
 
-	reply.Task = *c.taskManager.scheduleTask(args.WorkerId)
+	toAssign := c.taskManager.scheduleTask(args.WorkerId)
+	if toAssign != nil {
+		reply.Task = *toAssign
+		reply.result.Code = 0
+		reply.result.Message = "Assigned"
+	} else {
+		reply.result.Code = 0
+		reply.result.Message = "No task to assign"
+	}
 
 	return nil
 }
@@ -163,10 +172,9 @@ func initMapTasks(files []string, nReduce int) *utils.SafeMap[task] {
 	mapTasks := utils.NewSafeMap[task]()
 
 	for i, file := range files {
-		id := string(rune(i))
+		id := strconv.Itoa(i)
 		InputFiles := make([]string, 1)
 		InputFiles[0] = file
-
 		mapTasks.Put(id, task{
 			Id:       id,
 			TaskType: MapTaskType,

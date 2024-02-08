@@ -89,10 +89,11 @@ func (w *myWorker) askForTask() *task {
 // Loop forever to ask and work on the job assigned from coordinator
 func (w *myWorker) doJob() {
 	for {
-		task := w.pendingTasks.Dequeue()
-		if task == nil {
+		pending := w.pendingTasks.Dequeue()
+
+		if pending == nil {
 			newTask := w.askForTask()
-			if newTask == nil {
+			if newTask == nil || (*newTask).Id == "" {
 				time.Sleep(1 * time.Second)
 			} else {
 				w.pendingTasks.Enqueue(newTask)
@@ -100,15 +101,15 @@ func (w *myWorker) doJob() {
 			continue
 		}
 
-		switch (*task).TaskType {
+		switch (*pending).TaskType {
 		case MapTaskType:
-			slog.Info("Handling map task: " + (*task).Id)
-			outputs, err := w.handleMapTask(*task)
-			w.ReportTaskExecution((*task).Id, err == nil, outputs)
+			slog.Info("Handling map task: " + (*pending).Id)
+			outputs, err := w.handleMapTask(*pending)
+			w.ReportTaskExecution((*pending).Id, err == nil, outputs)
 		case ReduceTaskType:
-			slog.Info("Handling reduce task: " + (*task).Id)
-			outputs, err := w.handleReduceTask(*task)
-			w.ReportTaskExecution((*task).Id, err == nil, outputs)
+			slog.Info("Handling reduce task: " + (*pending).Id)
+			outputs, err := w.handleReduceTask(*pending)
+			w.ReportTaskExecution((*pending).Id, err == nil, outputs)
 		}
 	}
 }

@@ -1,6 +1,7 @@
 package mr
 
 import (
+	"strconv"
 	"sync"
 	"time"
 
@@ -86,10 +87,13 @@ func (tm *TaskManager) scheduleTask(workerId string) *task {
 	tm.mutex.Lock()
 	defer tm.mutex.Unlock()
 
-	if tm.phase == MapPhaseType {
+	switch tm.phase {
+	case MapPhaseType:
 		return tm.mapTasks.GetPending(workerId)
-	} else {
+	case ReducePhaseType:
 		return tm.reduceTasks.GetPending(workerId)
+	default:
+		return nil
 	}
 }
 
@@ -116,7 +120,7 @@ func (tm *TaskManager) setFinished(taskId string, outputs []string) bool {
 func (tm *TaskManager) initReduceTasks() *utils.SafeMap[task] {
 	reduceTasks := utils.NewSafeMap[task]()
 	for i := 0; i < tm.nReduce; i++ {
-		id := string(rune(i))
+		id := strconv.Itoa(i)
 
 		j := 0
 		InputFiles := make([]string, tm.mapTasks.total)
