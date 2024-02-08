@@ -9,6 +9,20 @@ import (
 	"6.5840/utils"
 )
 
+// Task is the unit of work for the worker
+// Captialize the first letter of the fields to make them public to rpc modules
+type task struct {
+	Id string
+
+	TaskType TaskType
+	Inputs   []string
+	Outputs  []string
+
+	NReduce          int
+	AssignedWorkerId string
+	AssignedTime     int64
+}
+
 type TaskManager struct {
 	nReduce     int
 	mapTasks    *TaskSet
@@ -17,6 +31,13 @@ type TaskManager struct {
 	phase Phase
 	mutex sync.RWMutex
 }
+
+type TaskType int
+
+const (
+	MapTaskType TaskType = iota
+	ReduceTaskType
+)
 
 type Phase int
 

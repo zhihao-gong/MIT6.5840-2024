@@ -93,6 +93,7 @@ func (w *myWorker) doJob() {
 
 		if pending == nil {
 			newTask := w.askForTask()
+			// notes: if id is empty, it means no task assigned by coordinator
 			if newTask == nil || (*newTask).Id == "" {
 				time.Sleep(1 * time.Second)
 			} else {
@@ -267,7 +268,7 @@ func Worker(mapf func(string, string) []KeyValue,
 
 	// Your worker implementation here.
 	worker := myWorker{
-		status:     Idle,
+		status:     Normal,
 		mapFunc:    mapf,
 		reduceFunc: reducef,
 	}

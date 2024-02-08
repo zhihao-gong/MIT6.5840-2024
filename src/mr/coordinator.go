@@ -26,7 +26,7 @@ func (c *Coordinator) Register(args *RegisterArgs, reply *RegisterReply) error {
 	c.workers.mapping.Put(assignedId, worker{
 		id:           assignedId,
 		lastPingTime: time.Now().Unix(),
-		status:       Idle,
+		status:       Normal,
 	})
 
 	reply.result.Code = 0
@@ -106,7 +106,7 @@ func (c *Coordinator) Ping(args *PingArgs, reply *PingReply) error {
 
 	worker.lastPingTime = time.Now().Unix()
 	if worker.status == Lost {
-		worker.status = Idle
+		worker.status = Normal
 	}
 	c.workers.mapping.Put(args.WorkerId, worker)
 
