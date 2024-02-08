@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"net/rpc"
-	"os"
 	"strconv"
 	"time"
 
@@ -71,10 +70,10 @@ func (c *Coordinator) ReportTaskExecution(args *ReportTaskExecutionArgs, reply *
 
 	if args.ExecuteSuccess {
 		slog.Info("Task finished: " + args.TaskId)
-		ok = c.taskManager.setFinished(args.TaskId, args.Outputs)
+		ok = c.taskManager.setFinished(args.TaskId, args.Outputs, args.WorkerId)
 	} else {
 		slog.Info("Task execution failed and reverted to pending queue: " + args.TaskId)
-		ok = c.taskManager.setPending(args.TaskId)
+		ok = c.taskManager.setPending(args.TaskId, args.WorkerId)
 	}
 
 	if !ok {
@@ -147,10 +146,7 @@ func (c *Coordinator) start() {
 func (c *Coordinator) server() {
 	rpc.Register(c)
 	rpc.HandleHTTP()
-	//l, e := net.Listen("tcp", ":1234")
-	sockname := coordinatorSock()
-	os.Remove(sockname)
-	l, e := net.Listen("unix", sockname)
+	l, e := net.Listen("tcp", ":8080")
 	if e != nil {
 		log.Fatal("listen error:", e)
 	}
@@ -198,5 +194,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	}
 
 	c.start()
+	slog.Info("Coordinator started")
+
 	return &c
 }
