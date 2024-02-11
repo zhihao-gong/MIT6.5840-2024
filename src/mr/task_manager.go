@@ -14,7 +14,7 @@ import (
 type task struct {
 	Id string
 
-	TaskType TaskType
+	TaskType taskType
 	Inputs   []string
 	Outputs  []string
 
@@ -23,22 +23,22 @@ type task struct {
 	AssignedTime     int64
 }
 
-type TaskManager struct {
+type taskManager struct {
 	nReduce           int
 	reassignThreshold int64
 
-	mapTasks    *TaskSet
-	reduceTasks *TaskSet
+	mapTasks    *taskSet
+	reduceTasks *taskSet
 
 	phase Phase
 	mutex sync.RWMutex
 }
 
-type TaskType int
+type taskType int
 
 const (
-	MapTaskType TaskType = iota
-	ReduceTaskType
+	mapTaskType taskType = iota
+	reduceTaskType
 )
 
 type Phase int
@@ -49,8 +49,8 @@ const (
 	DonePhaseType
 )
 
-func newTaskManager(nReduce int, mapTasks *utils.SafeMap[task], reassignThreshold int64) *TaskManager {
-	ts := &TaskManager{
+func newTaskManager(nReduce int, mapTasks *utils.SafeMap[task], reassignThreshold int64) *taskManager {
+	ts := &taskManager{
 		nReduce:           nReduce,
 		mapTasks:          newTaskSet(int(mapTasks.Len()), mapTasks),
 		reduceTasks:       nil,
@@ -62,36 +62,36 @@ func newTaskManager(nReduce int, mapTasks *utils.SafeMap[task], reassignThreshol
 	return ts
 }
 
-func (tm *TaskManager) scheduleTask(workerId string) *task {
+func (tm *taskManager) scheduleTask(workerId string) *task {
 	tm.mutex.Lock()
 	defer tm.mutex.Unlock()
 
 	switch tm.phase {
 	case MapPhaseType:
-		return tm.mapTasks.GetPending(workerId)
+		return tm.mapTasks.getPending(workerId)
 	case ReducePhaseType:
-		return tm.reduceTasks.GetPending(workerId)
+		return tm.reduceTasks.getPending(workerId)
 	default:
 		return nil
 	}
 }
 
-func (tm *TaskManager) setFinished(taskId string, outputs []string, workerId string) bool {
+func (tm *taskManager) setFinished(taskId string, outputs []string, workerId string) bool {
 	tm.mutex.Lock()
 	defer tm.mutex.Unlock()
 
 	switch tm.phase {
 	case MapPhaseType:
-		success := tm.mapTasks.SetFinished(taskId, outputs, workerId)
-		if success && tm.mapTasks.AllFinished() {
+		success := tm.mapTasks.setFinished(taskId, outputs, workerId)
+		if success && tm.mapTasks.allFinished() {
 			tm.phase = ReducePhaseType
 			tm.reduceTasks = newTaskSet(tm.nReduce, tm.initReduceTasks())
 			slog.Info("Map phase finished, start reduce phase now")
 		}
 		return success
 	case ReducePhaseType:
-		success := tm.reduceTasks.SetFinished(taskId, outputs, workerId)
-		if success && tm.reduceTasks.AllFinished() {
+		success := tm.reduceTasks.setFinished(taskId, outputs, workerId)
+		if success && tm.reduceTasks.allFinished() {
 			tm.phase = DonePhaseType
 			slog.Info("Reduce phase finished, all tasks done")
 		}
@@ -101,21 +101,21 @@ func (tm *TaskManager) setFinished(taskId string, outputs []string, workerId str
 	}
 }
 
-func (tm *TaskManager) setPending(taskId string, workerId string) bool {
+func (tm *taskManager) setPending(taskId string, workerId string) bool {
 	tm.mutex.Lock()
 	defer tm.mutex.Unlock()
 
 	switch tm.phase {
 	case MapPhaseType:
-		return tm.mapTasks.SetPending(taskId, workerId)
+		return tm.mapTasks.setPending(taskId, workerId)
 	case ReducePhaseType:
-		return tm.reduceTasks.SetPending(taskId, workerId)
+		return tm.reduceTasks.setPending(taskId, workerId)
 	default:
 		return false
 	}
 }
 
-func (tm *TaskManager) initReduceTasks() *utils.SafeMap[task] {
+func (tm *taskManager) initReduceTasks() *utils.SafeMap[task] {
 	reduceTasks := utils.NewSafeMap[task]()
 	for i := 0; i < tm.nReduce; i++ {
 		id := strconv.Itoa(i)
@@ -129,7 +129,7 @@ func (tm *TaskManager) initReduceTasks() *utils.SafeMap[task] {
 
 		reduceTasks.Put(id, task{
 			Id:       id,
-			TaskType: ReduceTaskType,
+			TaskType: reduceTaskType,
 			Inputs:   InputFiles,
 		})
 	}
@@ -137,7 +137,7 @@ func (tm *TaskManager) initReduceTasks() *utils.SafeMap[task] {
 	return reduceTasks
 }
 
-func (tm *TaskManager) audit() {
+func (tm *taskManager) audit() {
 	timer := time.NewTicker(1 * time.Second)
 
 	go func() {
@@ -147,7 +147,7 @@ func (tm *TaskManager) audit() {
 	}()
 }
 
-func (tm *TaskManager) cancelTimeoutTask() {
+func (tm *taskManager) cancelTimeoutTask() {
 	now := time.Now().Unix()
 
 	tm.mutex.Lock()
@@ -157,7 +157,7 @@ func (tm *TaskManager) cancelTimeoutTask() {
 	case MapPhaseType:
 		for _, t := range tm.mapTasks.assigned.Values() {
 			if now-t.AssignedTime >= tm.reassignThreshold {
-				ok := tm.mapTasks.SetPending(t.Id, "")
+				ok := tm.mapTasks.setPending(t.Id, "")
 				if !ok {
 					slog.Error("Failed to cancel map task: " + t.Id)
 				}
@@ -166,7 +166,7 @@ func (tm *TaskManager) cancelTimeoutTask() {
 	case ReducePhaseType:
 		for _, t := range tm.reduceTasks.assigned.Values() {
 			if now-t.AssignedTime >= tm.reassignThreshold {
-				ok := tm.reduceTasks.SetPending(t.Id, "")
+				ok := tm.reduceTasks.setPending(t.Id, "")
 				if !ok {
 					slog.Error("Failed to cancel reduce task: " + t.Id)
 				}
@@ -175,7 +175,7 @@ func (tm *TaskManager) cancelTimeoutTask() {
 	}
 }
 
-func (tm *TaskManager) cancelTaskForWorker(workerId string) {
+func (tm *taskManager) cancelTaskForWorker(workerId string) {
 	tm.mutex.Lock()
 	defer tm.mutex.Unlock()
 
@@ -183,7 +183,7 @@ func (tm *TaskManager) cancelTaskForWorker(workerId string) {
 	case MapPhaseType:
 		for _, t := range tm.mapTasks.assigned.Values() {
 			if t.AssignedWorkerId == workerId {
-				ok := tm.mapTasks.SetPending(t.Id, workerId)
+				ok := tm.mapTasks.setPending(t.Id, workerId)
 				if !ok {
 					slog.Error("Failed to cancel map task: " + t.Id)
 				}
@@ -192,7 +192,7 @@ func (tm *TaskManager) cancelTaskForWorker(workerId string) {
 	case ReducePhaseType:
 		for _, t := range tm.reduceTasks.assigned.Values() {
 			if t.AssignedWorkerId == workerId {
-				ok := tm.reduceTasks.SetPending(t.Id, workerId)
+				ok := tm.reduceTasks.setPending(t.Id, workerId)
 				if !ok {
 					slog.Error("Failed to cancel reduce task: " + t.Id)
 				}
@@ -201,7 +201,7 @@ func (tm *TaskManager) cancelTaskForWorker(workerId string) {
 	}
 }
 
-type TaskSet struct {
+type taskSet struct {
 	total int
 
 	pending  *utils.SafeMap[task]
@@ -209,8 +209,8 @@ type TaskSet struct {
 	finished *utils.SafeMap[task]
 }
 
-func newTaskSet(total int, tasks *utils.SafeMap[task]) *TaskSet {
-	return &TaskSet{
+func newTaskSet(total int, tasks *utils.SafeMap[task]) *taskSet {
+	return &taskSet{
 		total:    total,
 		pending:  tasks,
 		assigned: utils.NewSafeMap[task](),
@@ -218,7 +218,7 @@ func newTaskSet(total int, tasks *utils.SafeMap[task]) *TaskSet {
 	}
 }
 
-func (ts *TaskSet) GetPending(workerId string) *task {
+func (ts *taskSet) getPending(workerId string) *task {
 	task := ts.pending.GetOne()
 	if task == nil {
 		return nil
@@ -233,7 +233,7 @@ func (ts *TaskSet) GetPending(workerId string) *task {
 	return task
 }
 
-func (ts *TaskSet) SetFinished(taskId string, outputs []string, workerId string) bool {
+func (ts *taskSet) setFinished(taskId string, outputs []string, workerId string) bool {
 	task, ok := ts.assigned.Get(taskId)
 	if !ok {
 		return false
@@ -251,7 +251,7 @@ func (ts *TaskSet) SetFinished(taskId string, outputs []string, workerId string)
 	return true
 }
 
-func (ts *TaskSet) SetPending(taskId string, workerId string) bool {
+func (ts *taskSet) setPending(taskId string, workerId string) bool {
 	task, ok := ts.assigned.Get(taskId)
 	if !ok {
 		return false
@@ -270,6 +270,6 @@ func (ts *TaskSet) SetPending(taskId string, workerId string) bool {
 	return true
 }
 
-func (ts *TaskSet) AllFinished() bool {
+func (ts *taskSet) allFinished() bool {
 	return ts.finished.Len() == int(ts.total)
 }

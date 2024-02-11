@@ -19,7 +19,7 @@ import (
 // Worker is the interface for the worker
 type myWorker struct {
 	workerId   string
-	status     WorkerStatus
+	status     workerStatus
 	mapFunc    func(string, string) []KeyValue
 	reduceFunc func(string, []string) string
 
@@ -103,14 +103,14 @@ func (w *myWorker) doJob() {
 		}
 
 		switch (*pending).TaskType {
-		case MapTaskType:
+		case mapTaskType:
 			slog.Info("Handling map task: " + (*pending).Id)
 			outputs, err := w.handleMapTask(*pending)
-			w.ReportTaskExecution((*pending).Id, err == nil, outputs)
-		case ReduceTaskType:
+			w.reportTaskExecution((*pending).Id, err == nil, outputs)
+		case reduceTaskType:
 			slog.Info("Handling reduce task: " + (*pending).Id)
 			outputs, err := w.handleReduceTask(*pending)
-			w.ReportTaskExecution((*pending).Id, err == nil, outputs)
+			w.reportTaskExecution((*pending).Id, err == nil, outputs)
 		}
 	}
 }
@@ -215,7 +215,7 @@ func (w *myWorker) handleReduceTask(task *task) ([]string, error) {
 }
 
 // Report task execution status to the coordinator
-func (w *myWorker) ReportTaskExecution(taskId string, success bool, outputs []string) {
+func (w *myWorker) reportTaskExecution(taskId string, success bool, outputs []string) {
 	args := ReportTaskExecutionArgs{
 		WorkerId:       w.workerId,
 		TaskId:         taskId,
@@ -236,8 +236,8 @@ func (w *myWorker) ReportTaskExecution(taskId string, success bool, outputs []st
 	}
 }
 
-// Start the worker and keep reporting the status to the coordinator
-func (w *myWorker) Start() {
+// Start the worker
+func (w *myWorker) start() {
 	w.workerId = w.register()
 	slog.Info("Registered successfully with assigned id: " + w.workerId)
 
@@ -268,11 +268,11 @@ func Worker(mapf func(string, string) []KeyValue,
 
 	// Your worker implementation here.
 	worker := myWorker{
-		status:     Normal,
+		status:     normal,
 		mapFunc:    mapf,
 		reduceFunc: reducef,
 	}
-	worker.Start()
+	worker.start()
 }
 
 // send an RPC request to the coordinator, wait for the response.

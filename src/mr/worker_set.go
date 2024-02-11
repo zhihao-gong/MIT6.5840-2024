@@ -6,26 +6,26 @@ import (
 	"6.5840/utils"
 )
 
-type WorkerStatus int
+type workerStatus int
 
 const (
-	Normal WorkerStatus = iota
-	Lost
+	normal workerStatus = iota
+	lost
 )
 
 type worker struct {
 	id           string
 	lastPingTime int64
-	status       WorkerStatus
+	status       workerStatus
 }
 
-type WorkerSet struct {
+type workerSet struct {
 	mutex   sync.RWMutex
 	mapping *utils.SafeMap[worker]
 }
 
-func NewWorkerSet() *WorkerSet {
-	return &WorkerSet{
+func newWorkerSet() *workerSet {
+	return &workerSet{
 		mapping: utils.NewSafeMap[worker](),
 	}
 }

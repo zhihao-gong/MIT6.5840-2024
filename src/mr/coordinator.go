@@ -15,8 +15,8 @@ import (
 
 // Coordinator holds all the information about the current state of the map reduce job
 type Coordinator struct {
-	workers           *WorkerSet
-	taskManager       *TaskManager
+	workers           *workerSet
+	taskManager       *taskManager
 	keepAliveTheshold int64
 }
 
@@ -26,7 +26,7 @@ func (c *Coordinator) Register(args *RegisterArgs, reply *RegisterReply) error {
 	c.workers.mapping.Put(assignedId, worker{
 		id:           assignedId,
 		lastPingTime: time.Now().Unix(),
-		status:       Normal,
+		status:       normal,
 	})
 
 	reply.result.Code = 0
@@ -36,7 +36,7 @@ func (c *Coordinator) Register(args *RegisterArgs, reply *RegisterReply) error {
 	return nil
 }
 
-// AskForTask is called by worker for a task if appropriate
+// AskForTask is called by worker for a task
 func (c *Coordinator) AskForTask(args *AskForTaskArgs, reply *AskForTaskReply) error {
 	_, ok := c.workers.mapping.Get(args.WorkerId)
 	if !ok {
@@ -105,8 +105,8 @@ func (c *Coordinator) Ping(args *PingArgs, reply *PingReply) error {
 	slog.Info("Ping from worker:" + args.WorkerId)
 
 	worker.lastPingTime = time.Now().Unix()
-	if worker.status == Lost {
-		worker.status = Normal
+	if worker.status == lost {
+		worker.status = normal
 	}
 	c.workers.mapping.Put(args.WorkerId, worker)
 
@@ -124,7 +124,7 @@ func (c *Coordinator) auditWorkerStatus() {
 	for _, worker := range c.workers.mapping.Values() {
 		if time.Now().Unix()-worker.lastPingTime > c.keepAliveTheshold {
 			slog.Info("Worker lost: " + worker.id + ", canceling tasks")
-			worker.status = Lost
+			worker.status = lost
 			c.workers.mapping.Put(worker.id, worker)
 
 			c.taskManager.cancelTaskForWorker(worker.id)
@@ -176,7 +176,7 @@ func initMapTasks(files []string, nReduce int) *utils.SafeMap[task] {
 		InputFiles[0] = file
 		mapTasks.Put(id, task{
 			Id:       id,
-			TaskType: MapTaskType,
+			TaskType: mapTaskType,
 			Inputs:   InputFiles,
 			NReduce:  nReduce,
 		})
@@ -191,7 +191,7 @@ func initMapTasks(files []string, nReduce int) *utils.SafeMap[task] {
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	mapTasks := initMapTasks(files, nReduce)
 	c := Coordinator{
-		workers:           NewWorkerSet(),
+		workers:           newWorkerSet(),
 		taskManager:       newTaskManager(nReduce, mapTasks, 10),
 		keepAliveTheshold: 60,
 	}
