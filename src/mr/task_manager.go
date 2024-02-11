@@ -30,7 +30,7 @@ type taskManager struct {
 	mapTasks    *taskSet
 	reduceTasks *taskSet
 
-	phase Phase
+	phase phase
 	mutex sync.RWMutex
 }
 
@@ -41,12 +41,12 @@ const (
 	reduceTaskType
 )
 
-type Phase int
+type phase int
 
 const (
-	MapPhaseType Phase = iota
-	ReducePhaseType
-	DonePhaseType
+	mapPhase phase = iota
+	reducePhase
+	donePhase
 )
 
 func newTaskManager(nReduce int, mapTasks *utils.SafeMap[task], reassignThreshold int64) *taskManager {
@@ -54,7 +54,7 @@ func newTaskManager(nReduce int, mapTasks *utils.SafeMap[task], reassignThreshol
 		nReduce:           nReduce,
 		mapTasks:          newTaskSet(int(mapTasks.Len()), mapTasks),
 		reduceTasks:       nil,
-		phase:             MapPhaseType,
+		phase:             mapPhase,
 		reassignThreshold: reassignThreshold,
 	}
 	ts.audit()
@@ -67,9 +67,9 @@ func (tm *taskManager) scheduleTask(workerId string) *task {
 	defer tm.mutex.Unlock()
 
 	switch tm.phase {
-	case MapPhaseType:
+	case mapPhase:
 		return tm.mapTasks.getPending(workerId)
-	case ReducePhaseType:
+	case reducePhase:
 		return tm.reduceTasks.getPending(workerId)
 	default:
 		return nil
@@ -81,18 +81,18 @@ func (tm *taskManager) setFinished(taskId string, outputs []string, workerId str
 	defer tm.mutex.Unlock()
 
 	switch tm.phase {
-	case MapPhaseType:
+	case mapPhase:
 		success := tm.mapTasks.setFinished(taskId, outputs, workerId)
 		if success && tm.mapTasks.allFinished() {
-			tm.phase = ReducePhaseType
+			tm.phase = reducePhase
 			tm.reduceTasks = newTaskSet(tm.nReduce, tm.initReduceTasks())
 			slog.Info("Map phase finished, start reduce phase now")
 		}
 		return success
-	case ReducePhaseType:
+	case reducePhase:
 		success := tm.reduceTasks.setFinished(taskId, outputs, workerId)
 		if success && tm.reduceTasks.allFinished() {
-			tm.phase = DonePhaseType
+			tm.phase = donePhase
 			slog.Info("Reduce phase finished, all tasks done")
 		}
 		return success
@@ -106,9 +106,9 @@ func (tm *taskManager) setPending(taskId string, workerId string) bool {
 	defer tm.mutex.Unlock()
 
 	switch tm.phase {
-	case MapPhaseType:
+	case mapPhase:
 		return tm.mapTasks.setPending(taskId, workerId)
-	case ReducePhaseType:
+	case reducePhase:
 		return tm.reduceTasks.setPending(taskId, workerId)
 	default:
 		return false
@@ -154,7 +154,7 @@ func (tm *taskManager) cancelTimeoutTask() {
 	defer tm.mutex.Unlock()
 
 	switch tm.phase {
-	case MapPhaseType:
+	case mapPhase:
 		for _, t := range tm.mapTasks.assigned.Values() {
 			if now-t.AssignedTime >= tm.reassignThreshold {
 				ok := tm.mapTasks.setPending(t.Id, "")
@@ -163,7 +163,7 @@ func (tm *taskManager) cancelTimeoutTask() {
 				}
 			}
 		}
-	case ReducePhaseType:
+	case reducePhase:
 		for _, t := range tm.reduceTasks.assigned.Values() {
 			if now-t.AssignedTime >= tm.reassignThreshold {
 				ok := tm.reduceTasks.setPending(t.Id, "")
@@ -180,7 +180,7 @@ func (tm *taskManager) cancelTaskForWorker(workerId string) {
 	defer tm.mutex.Unlock()
 
 	switch tm.phase {
-	case MapPhaseType:
+	case mapPhase:
 		for _, t := range tm.mapTasks.assigned.Values() {
 			if t.AssignedWorkerId == workerId {
 				ok := tm.mapTasks.setPending(t.Id, workerId)
@@ -189,7 +189,7 @@ func (tm *taskManager) cancelTaskForWorker(workerId string) {
 				}
 			}
 		}
-	case ReducePhaseType:
+	case reducePhase:
 		for _, t := range tm.reduceTasks.assigned.Values() {
 			if t.AssignedWorkerId == workerId {
 				ok := tm.reduceTasks.setPending(t.Id, workerId)
