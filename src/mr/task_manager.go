@@ -66,6 +66,13 @@ func newTaskManager(nReduce int, mapTasks *utils.SafeMap[task], reassignThreshol
 	return ts
 }
 
+func (tm *taskManager) currPhase() phase {
+	tm.mutex.Lock()
+	defer tm.mutex.Unlock()
+
+	return tm.phase
+}
+
 func (tm *taskManager) scheduleTask(workerId string) *task {
 	tm.mutex.Lock()
 	defer tm.mutex.Unlock()
