@@ -2,11 +2,13 @@ package mr
 
 import (
 	"log/slog"
+	"os"
 	"strconv"
 	"sync"
 	"time"
 
 	"6.5840/utils"
+	"github.com/google/uuid"
 )
 
 // Task is the unit of work for the worker
@@ -39,6 +41,8 @@ type taskType int
 const (
 	mapTaskType taskType = iota
 	reduceTaskType
+	// tell worker to exit as all tasks have been finished
+	exitTaskType
 )
 
 type phase int
@@ -72,7 +76,11 @@ func (tm *taskManager) scheduleTask(workerId string) *task {
 	case reducePhase:
 		return tm.reduceTasks.getPending(workerId)
 	default:
-		return nil
+		return &task{
+			TaskType: exitTaskType,
+			// value of id for exitTask does not matter
+			Id: uuid.New().String(),
+		}
 	}
 }
 
@@ -94,6 +102,14 @@ func (tm *taskManager) setFinished(taskId string, outputs []string, workerId str
 		if success && tm.reduceTasks.allFinished() {
 			tm.phase = donePhase
 			slog.Info("Reduce phase finished, all tasks done")
+
+			go func() {
+				slog.Info("Start a grace period of 30s")
+				time.Sleep(30 * time.Second)
+
+				slog.Info("Exit the program")
+				os.Exit(0)
+			}()
 		}
 		return success
 	default:

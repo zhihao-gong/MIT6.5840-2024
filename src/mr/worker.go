@@ -106,11 +106,24 @@ func (w *myWorker) doJob() {
 		case mapTaskType:
 			slog.Info("Handling map task: " + (*pending).Id)
 			outputs, err := w.handleMapTask(*pending)
-			w.reportTaskExecution((*pending).Id, err == nil, outputs)
+			if err != nil {
+				slog.Info(err.Error())
+				w.reportTaskExecution((*pending).Id, false, outputs)
+			} else {
+				w.reportTaskExecution((*pending).Id, true, outputs)
+			}
 		case reduceTaskType:
 			slog.Info("Handling reduce task: " + (*pending).Id)
 			outputs, err := w.handleReduceTask(*pending)
-			w.reportTaskExecution((*pending).Id, err == nil, outputs)
+			if err != nil {
+				slog.Info(err.Error())
+				w.reportTaskExecution((*pending).Id, false, outputs)
+			} else {
+				w.reportTaskExecution((*pending).Id, true, outputs)
+			}
+		case exitTaskType:
+			slog.Info("Going to exit the program")
+			os.Exit(0)
 		}
 	}
 }

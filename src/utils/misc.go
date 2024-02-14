@@ -3,6 +3,7 @@ package utils
 import (
 	"io"
 	"os"
+	"path/filepath"
 )
 
 func ReadFile(filename string) (string, error) {
@@ -21,7 +22,10 @@ func ReadFile(filename string) (string, error) {
 }
 
 func WriteFile(filename string, content []byte) error {
-	file, err := os.CreateTemp("", "")
+	dir := filepath.Dir(filename)
+	base := filepath.Base(filename)
+	file, err := os.CreateTemp(dir, base)
+
 	if err != nil {
 		return err
 	}
