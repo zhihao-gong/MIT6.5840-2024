@@ -14,3 +14,5 @@
 - [ ] 检查异常处理是否有缺失
 - [ ] 部分 rpc 请求增加重试逻辑
 - [ ] 学习其他开源实现
+- [ ] 实现 worker 优雅退出
+- [ ] Debug crashed worker case failed
