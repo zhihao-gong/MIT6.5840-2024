@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
-	"log"
 	"log/slog"
+	"net"
 	"net/rpc"
 	"os"
 	"path/filepath"
@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"6.5840/utils"
+	"github.com/avast/retry-go"
 )
 
 // Worker is the interface for the worker
@@ -31,13 +32,7 @@ func (w *myWorker) register() string {
 	args := RegisterArgs{}
 	reply := RegisterReply{}
 
-	ok := call("Coordinator.Register", &args, &reply)
-
-	// TODO: Add retry logics
-	if !ok {
-		slog.Error("Register error while rpc")
-		os.Exit(1)
-	}
+	callWithRetry("Coordinator.Register", &args, &reply)
 	if reply.result.Code != 0 {
 		slog.Error("Register error: " + reply.result.Message)
 		os.Exit(1)
@@ -53,11 +48,7 @@ func (w *myWorker) ping() {
 	}
 	reply := PingReply{}
 
-	ok := call("Coordinator.Ping", &args, &reply)
-	if !ok {
-		slog.Error("Ping error while rpc")
-		return
-	}
+	callWithRetry("Coordinator.Ping", &args, &reply)
 	if reply.Result.Code != 0 {
 		slog.Error("Ping error: " + reply.Result.Message)
 		return
@@ -72,12 +63,7 @@ func (w *myWorker) askForTask() *task {
 
 	reply := AskForTaskReply{}
 
-	ok := call("Coordinator.AskForTask", &args, &reply)
-	if !ok {
-		slog.Error("AskForTask error while rpc")
-		return nil
-	}
-
+	callWithRetry("Coordinator.AskForTask", &args, &reply)
 	if reply.result.Code != 0 {
 		slog.Error("AskForTask error: " + reply.result.Message)
 		return nil
@@ -237,12 +223,7 @@ func (w *myWorker) reportTaskExecution(taskId string, success bool, outputs []st
 	}
 	reply := ReportTaskExecutionReply{}
 
-	// TODO: Add retry logics
-	ok := call("Coordinator.ReportTaskExecution", &args, &reply)
-	if !ok {
-		slog.Error("ReportTaskExecution error while rpc")
-		return
-	}
+	callWithRetry("Coordinator.ReportTaskExecution", &args, &reply)
 	if reply.Result.Code != 0 {
 		slog.Error("ReportTaskExecution error: " + reply.Result.Message)
 		return
@@ -288,21 +269,47 @@ func Worker(mapf func(string, string) []KeyValue,
 	worker.start()
 }
 
+func callWithRetry(rpcname string,
+	args interface{}, reply interface{}) {
+
+	err := retry.Do(
+		func() error {
+			return call(rpcname, args, reply)
+		},
+		retry.Attempts(3),
+		retry.DelayType(retry.BackOffDelay),
+		retry.OnRetry(func(n uint, err error) {
+			slog.Info("Retry %v for error: %v\n", n, err)
+		}),
+		retry.RetryIf(func(err error) bool {
+			switch err := err.(type) {
+			case net.Error:
+				return err.Temporary()
+			default:
+				return false
+			}
+		}),
+	)
+
+	if err != nil {
+		slog.Error("Failed to connect to coordinator, worker exiting")
+		os.Exit(1)
+	}
+}
+
 // send an RPC request to the coordinator, wait for the response.
-// usually returns true.
-// returns false if something goes wrong.
-func call(rpcname string, args interface{}, reply interface{}) bool {
+// returns error if something goes wrong.
+func call(rpcname string, args interface{}, reply interface{}) error {
 	c, err := rpc.DialHTTP("tcp", "127.0.0.1:8080")
 	if err != nil {
-		log.Fatal("dialing:", err)
+		return err
 	}
 	defer c.Close()
 
 	err = c.Call(rpcname, args, reply)
-	if err == nil {
-		return true
+	if err != nil {
+		return err
 	}
 
-	fmt.Println(err)
-	return false
+	return nil
 }

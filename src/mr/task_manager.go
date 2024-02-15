@@ -2,7 +2,6 @@ package mr
 
 import (
 	"log/slog"
-	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -109,14 +108,6 @@ func (tm *taskManager) setFinished(taskId string, outputs []string, workerId str
 		if success && tm.reduceTasks.allFinished() {
 			tm.phase = donePhase
 			slog.Info("Reduce phase finished, all tasks done")
-
-			go func() {
-				slog.Info("Start a grace period of 30s")
-				time.Sleep(30 * time.Second)
-
-				slog.Info("Exit the program")
-				os.Exit(0)
-			}()
 		}
 		return success
 	default:
