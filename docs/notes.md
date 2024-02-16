@@ -12,5 +12,4 @@
 
 - [ ] 检查所有 pointers 使用是否是最佳实践
 - [ ] 学习其他开源实现
-- [ ] 实现 worker 优雅退出
 - [ ] Debug crashed worker case failed
