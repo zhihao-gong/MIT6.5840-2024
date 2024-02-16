@@ -10,6 +10,5 @@
 
 ## TODO
 
-- [ ] 检查所有 pointers 使用是否是最佳实践
-- [ ] 学习其他开源实现
+- [ ] 增加一个 notes 来记录设计和可能的改进点
 - [ ] Debug crashed worker case failed
