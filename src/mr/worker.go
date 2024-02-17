@@ -300,7 +300,9 @@ func callWithRetry(rpcname string,
 // send an RPC request to the coordinator, wait for the response.
 // returns error if something goes wrong.
 func call(rpcname string, args interface{}, reply interface{}) error {
-	c, err := rpc.DialHTTP("tcp", "127.0.0.1:8080")
+	// c, err := rpc.DialHTTP("tcp", "127.0.0.1:8080")
+	sockname := coordinatorSock()
+	c, err := rpc.DialHTTP("unix", sockname)
 	if err != nil {
 		return err
 	}

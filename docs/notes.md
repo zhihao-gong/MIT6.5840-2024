@@ -11,4 +11,3 @@
 ## TODO
 
 - [ ] 增加一个 notes 来记录设计和可能的改进点
-- [ ] Debug crashed worker case failed
