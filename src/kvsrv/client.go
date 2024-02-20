@@ -1,9 +1,16 @@
 package kvsrv
 
-import "6.5840/labrpc"
-import "crypto/rand"
-import "math/big"
+import (
+	"crypto/rand"
+	"log/slog"
+	"math/big"
+	"net"
+	"net/rpc"
+	"os"
 
+	"6.5840/labrpc"
+	"github.com/avast/retry-go"
+)
 
 type Clerk struct {
 	server *labrpc.ClientEnd
@@ -36,7 +43,7 @@ func MakeClerk(server *labrpc.ClientEnd) *Clerk {
 // arguments. and reply must be passed as a pointer.
 func (ck *Clerk) Get(key string) string {
 
-	// You will have to modify this function.
+	ok := ck.server.Call("KVServer.Get", &args, &reply)
 	return ""
 }
 
@@ -60,4 +67,49 @@ func (ck *Clerk) Put(key string, value string) {
 // Append value to key's value and return that value
 func (ck *Clerk) Append(key string, value string) string {
 	return ck.PutAppend(key, value, "Append")
+}
+
+func callWithRetry(rpcname string,
+	args interface{}, reply interface{}) {
+
+	err := retry.Do(
+		func() error {
+			return call(rpcname, args, reply)
+		},
+		retry.Attempts(3),
+		retry.DelayType(retry.BackOffDelay),
+		retry.OnRetry(func(n uint, err error) {
+			slog.Info("Retry %v for error: %v\n", n, err)
+		}),
+		retry.RetryIf(func(err error) bool {
+			switch err := err.(type) {
+			case net.Error:
+				return err.Temporary()
+			default:
+				return false
+			}
+		}),
+	)
+
+	if err != nil {
+		slog.Error("Failed to connect to coordinator, worker exiting")
+		os.Exit(1)
+	}
+}
+
+// send an RPC request to the coordinator, wait for the response.
+// returns error if something goes wrong.
+func call(rpcname string, args interface{}, reply interface{}) error {
+	c, err := rpc.DialHTTP("tcp", "127.0.0.1:8080")
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	err = c.Call(rpcname, args, reply)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
