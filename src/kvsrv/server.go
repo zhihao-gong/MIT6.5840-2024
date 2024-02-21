@@ -2,6 +2,7 @@ package kvsrv
 
 import (
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/rpc"
@@ -23,13 +24,25 @@ type KVServer struct {
 }
 
 func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
-	// Your code here.
 	key := args.Key
 	reply.Value, _ = kv.store.Get(key)
 }
 
-func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) {
-	// Your code here.
+func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) error {
+	key := args.Key
+	value := args.Value
+
+	shard := kv.store.GetShard(args.Key)
+	shard.Lock()
+	oldValue, ok := shard.items[key]
+	if !ok {
+
+		shard.Unlock()
+	}
+	shard.items[key] = value
+	shard.Unlock()
+
+	reply.OldValue = oldValue
 }
 
 func (kv *KVServer) Append(args *PutAppendArgs, reply *PutAppendReply) {
@@ -50,6 +63,8 @@ func (kv *KVServer) server() {
 func StartKVServer() *KVServer {
 	kv := new(KVServer)
 	kv.server()
+
+	slog.Info("Keyserver started")
 
 	return kv
 }
