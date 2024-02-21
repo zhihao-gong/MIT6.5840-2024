@@ -34,19 +34,34 @@ func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) error {
 
 	shard := kv.store.GetShard(args.Key)
 	shard.Lock()
-	oldValue, ok := shard.items[key]
-	if !ok {
-
-		shard.Unlock()
-	}
+	defer shard.Unlock()
+	oldValue, exists := shard.items[key]
 	shard.items[key] = value
-	shard.Unlock()
 
-	reply.OldValue = oldValue
+	if !exists {
+		reply.OldValue = ""
+	} else {
+		reply.OldValue = oldValue
+	}
 }
 
 func (kv *KVServer) Append(args *PutAppendArgs, reply *PutAppendReply) {
-	// Your code here.
+	key := args.Key
+	value := args.Value
+
+	shard := kv.store.GetShard(args.Key)
+
+	shard.Lock()
+	defer shard.Unlock()
+
+	oldValue, exists := shard.items[key]
+	if exists {
+		shard.items[key] = value
+		reply.OldValue = ""
+	} else {
+		shard.items[key] = oldValue + value
+		reply.OldValue = oldValue
+	}
 }
 
 // start a thread that listens for RPCs from worker.go
