@@ -55,7 +55,7 @@ func (kv *KVServer) Append(args *PutAppendArgs, reply *PutAppendReply) {
 	defer shard.Unlock()
 
 	oldValue, exists := shard.items[key]
-	if exists {
+	if !exists {
 		shard.items[key] = value
 		reply.OldValue = ""
 	} else {
