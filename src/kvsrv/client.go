@@ -91,7 +91,6 @@ func (ck *Clerk) Append(key string, value string) string {
 
 func callWithRetry(rpcname string,
 	args interface{}, reply interface{}) {
-
 	err := retry.Do(
 		func() error {
 			return call(rpcname, args, reply)
@@ -111,9 +110,8 @@ func callWithRetry(rpcname string,
 			}
 		}),
 	)
-	println(err)
 	if err != nil {
-		slog.Error("Failed to connect to coordinator, worker exiting")
+		slog.Error(err.Error())
 		os.Exit(1)
 	}
 }

@@ -20,15 +20,17 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 }
 
 type KVServer struct {
-	store *utils.ConcurrentMap[string, string]
+	store utils.ConcurrentMap[string, string]
 }
 
-func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
+func (kv *KVServer) Get(args *GetArgs, reply *GetReply) error {
 	key := args.Key
 	reply.Value, _ = kv.store.Get(key)
+
+	return nil
 }
 
-func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) {
+func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) error {
 	key := args.Key
 	value := args.Value
 
@@ -43,9 +45,11 @@ func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) {
 	} else {
 		reply.OldValue = oldValue
 	}
+
+	return nil
 }
 
-func (kv *KVServer) Append(args *PutAppendArgs, reply *PutAppendReply) {
+func (kv *KVServer) Append(args *PutAppendArgs, reply *PutAppendReply) error {
 	key := args.Key
 	value := args.Value
 
@@ -62,6 +66,8 @@ func (kv *KVServer) Append(args *PutAppendArgs, reply *PutAppendReply) {
 		shard.Items[key] = oldValue + value
 		reply.OldValue = oldValue
 	}
+
+	return nil
 }
 
 // start a thread that listens for RPCs from worker.go
@@ -76,7 +82,9 @@ func (kv *KVServer) server() {
 }
 
 func StartKVServer() *KVServer {
-	kv := new(KVServer)
+	kv := &KVServer{
+		store: utils.New[string](),
+	}
 	kv.server()
 
 	slog.Info("Keyserver started")
