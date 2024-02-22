@@ -1,6 +1,6 @@
 // This implementation is adapted from
 // https://github.com/orcaman/concurrent-map/blob/85296bce05256a80153a9e0c2bf6f4e167a4fe8d/concurrent_map.go
-// We need to access private attrs directorly such as map items, so here we choose our own version
+// We need to access private attrs directorly such as "shard.items", so here we maintain our own version
 
 package utils
 
