@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/rpc"
 
-	cmap "github.com/orcaman/concurrent-map/v2"
+	"6.5840/utils"
 )
 
 const Debug = false
@@ -20,7 +20,7 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 }
 
 type KVServer struct {
-	store *cmap.ConcurrentMap[string, string]
+	store *utils.ConcurrentMap[string, string]
 }
 
 func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
@@ -28,15 +28,15 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 	reply.Value, _ = kv.store.Get(key)
 }
 
-func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) error {
+func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) {
 	key := args.Key
 	value := args.Value
 
 	shard := kv.store.GetShard(args.Key)
 	shard.Lock()
 	defer shard.Unlock()
-	oldValue, exists := shard.items[key]
-	shard.items[key] = value
+	oldValue, exists := shard.Items[key]
+	shard.Items[key] = value
 
 	if !exists {
 		reply.OldValue = ""
@@ -54,12 +54,12 @@ func (kv *KVServer) Append(args *PutAppendArgs, reply *PutAppendReply) {
 	shard.Lock()
 	defer shard.Unlock()
 
-	oldValue, exists := shard.items[key]
+	oldValue, exists := shard.Items[key]
 	if !exists {
-		shard.items[key] = value
+		shard.Items[key] = value
 		reply.OldValue = ""
 	} else {
-		shard.items[key] = oldValue + value
+		shard.Items[key] = oldValue + value
 		reply.OldValue = oldValue
 	}
 }
