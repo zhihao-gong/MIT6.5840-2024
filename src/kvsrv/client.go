@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math/big"
-	"net"
-	"net/rpc"
 	"os"
 
 	"6.5840/labrpc"
@@ -15,7 +13,6 @@ import (
 
 type Clerk struct {
 	server *labrpc.ClientEnd
-	// You will have to modify this struct.
 }
 
 func nrand() int64 {
@@ -47,7 +44,7 @@ func (ck *Clerk) Get(key string) string {
 	}
 	reply := GetReply{}
 
-	callWithRetry("KVServer.Get", &args, &reply)
+	ck.callWithRetry("KVServer.Get", &args, &reply, 1000000)
 
 	return reply.Value
 }
@@ -67,12 +64,17 @@ func (ck *Clerk) PutAppend(key string, value string, op OperationType) string {
 	}
 	reply := PutAppendReply{}
 
-	// FIXME remove retry logics for lineability
 	switch op {
 	case PutOps:
-		callWithRetry("KVServer.Put", &args, &reply)
+		ok := ck.server.Call("KVServer.Put", &args, &reply)
+		if !ok {
+			slog.Error("Error calling Put RPC")
+		}
 	case AppendOps:
-		callWithRetry("KVServer.Append", &args, &reply)
+		ok := ck.server.Call("KVServer.Append", &args, &reply)
+		if !ok {
+			slog.Error("Error calling Append RPC")
+		}
 	default:
 		panic("Unkown operation type")
 	}
@@ -89,46 +91,24 @@ func (ck *Clerk) Append(key string, value string) string {
 	return ck.PutAppend(key, value, AppendOps)
 }
 
-func callWithRetry(rpcname string,
-	args interface{}, reply interface{}) {
+func (ck *Clerk) callWithRetry(rpcname string,
+	args interface{}, reply interface{}, attempts uint) {
 	err := retry.Do(
 		func() error {
-			return call(rpcname, args, reply)
+			ok := ck.server.Call(rpcname, args, reply)
+			if !ok {
+				return fmt.Errorf("Error calling %s RPC", rpcname)
+			}
+			return nil
 		},
-		retry.Attempts(3),
+		retry.Attempts(attempts),
 		retry.DelayType(retry.BackOffDelay),
 		retry.OnRetry(func(n uint, err error) {
 			slog.Info("Retry %v for error: %v\n", fmt.Sprint(n), err)
-		}),
-		retry.RetryIf(func(err error) bool {
-			switch err := err.(type) {
-			case net.Error:
-				// FIXME: fix depreciated
-				return err.Temporary()
-			default:
-				return false
-			}
 		}),
 	)
 	if err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)
 	}
-}
-
-// send an RPC request to the coordinator, wait for the response.
-// returns error if something goes wrong.
-func call(rpcname string, args interface{}, reply interface{}) error {
-	c, err := rpc.DialHTTP("tcp", "127.0.0.1:8080")
-	if err != nil {
-		return err
-	}
-	defer c.Close()
-
-	err = c.Call(rpcname, args, reply)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }

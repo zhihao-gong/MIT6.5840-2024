@@ -2,10 +2,6 @@ package kvsrv
 
 import (
 	"log"
-	"log/slog"
-	"net"
-	"net/http"
-	"net/rpc"
 
 	"6.5840/utils"
 )
@@ -23,14 +19,12 @@ type KVServer struct {
 	store utils.ConcurrentMap[string, string]
 }
 
-func (kv *KVServer) Get(args *GetArgs, reply *GetReply) error {
+func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 	key := args.Key
 	reply.Value, _ = kv.store.Get(key)
-
-	return nil
 }
 
-func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) error {
+func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) {
 	key := args.Key
 	value := args.Value
 
@@ -46,10 +40,9 @@ func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) error {
 		reply.OldValue = oldValue
 	}
 
-	return nil
 }
 
-func (kv *KVServer) Append(args *PutAppendArgs, reply *PutAppendReply) error {
+func (kv *KVServer) Append(args *PutAppendArgs, reply *PutAppendReply) {
 	key := args.Key
 	value := args.Value
 
@@ -67,27 +60,12 @@ func (kv *KVServer) Append(args *PutAppendArgs, reply *PutAppendReply) error {
 		reply.OldValue = oldValue
 	}
 
-	return nil
-}
-
-// start a thread that listens for RPCs from worker.go
-func (kv *KVServer) server() {
-	rpc.Register(kv)
-	rpc.HandleHTTP()
-	l, e := net.Listen("tcp", ":8080")
-	if e != nil {
-		log.Fatal("listen error:", e)
-	}
-	go http.Serve(l, nil)
 }
 
 func StartKVServer() *KVServer {
 	kv := &KVServer{
 		store: utils.New[string](),
 	}
-	kv.server()
-
-	slog.Info("Keyserver started")
 
 	return kv
 }
