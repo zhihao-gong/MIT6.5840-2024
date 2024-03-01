@@ -187,7 +187,6 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	isLeader := true
 
 	// Your code here (3B).
-
 	return index, term, isLeader
 }
 
