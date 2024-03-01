@@ -3,16 +3,18 @@ package kvsrv
 import (
 	"crypto/rand"
 	"fmt"
+	"log"
 	"log/slog"
 	"math/big"
 	"os"
 
 	"6.5840/labrpc"
 	"github.com/avast/retry-go"
+	snowflake "github.com/bwmarrin/snowflake"
 )
 
 type Clerk struct {
-	id     string
+	id     int64
 	server *labrpc.ClientEnd
 }
 
@@ -26,6 +28,14 @@ func nrand() int64 {
 func MakeClerk(server *labrpc.ClientEnd) *Clerk {
 	ck := new(Clerk)
 	ck.server = server
+
+	node, err := snowflake.NewNode(1)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	ck.id = int64(node.Generate())
+
 	return ck
 }
 

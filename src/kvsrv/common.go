@@ -8,8 +8,8 @@ const (
 )
 
 type ReqId struct {
-	Client string
-	Seq    uint
+	Client int64
+	Seq    int64
 }
 
 // Put or Append
