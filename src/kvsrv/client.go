@@ -9,13 +9,15 @@ import (
 	"os"
 
 	"6.5840/labrpc"
+	"6.5840/utils"
 	"github.com/avast/retry-go"
 	snowflake "github.com/bwmarrin/snowflake"
 )
 
 type Clerk struct {
-	id     int64
-	server *labrpc.ClientEnd
+	id      int64
+	reqIncr utils.Incrementer
+	server  *labrpc.ClientEnd
 }
 
 func nrand() int64 {
@@ -35,6 +37,7 @@ func MakeClerk(server *labrpc.ClientEnd) *Clerk {
 	}
 
 	ck.id = int64(node.Generate())
+	ck.reqIncr = utils.Incrementer{Number: 0}
 
 	return ck
 }
