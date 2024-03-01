@@ -15,8 +15,15 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 	return
 }
 
+func DedupReq[T any, Y any](operation func(t *T, y *Y)) func(t *T, y *Y) {
+	return func(t *T, y *Y) {
+		operation(t, y)
+	}
+}
+
 type KVServer struct {
-	store utils.ConcurrentMap[string, string]
+	store       utils.ConcurrentMap[string, string]
+	deduplicate utils.ConcurrentMap[string, uint] // key: client id, value: request sequence number
 }
 
 func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {

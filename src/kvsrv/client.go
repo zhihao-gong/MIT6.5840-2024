@@ -12,6 +12,7 @@ import (
 )
 
 type Clerk struct {
+	id     string
 	server *labrpc.ClientEnd
 }
 
