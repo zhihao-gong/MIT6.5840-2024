@@ -16,7 +16,7 @@ type ReqId struct {
 type PutAppendArgs struct {
 	Key   string
 	Value string
-	ReqId
+	Id    ReqId
 }
 
 type PutAppendReply struct {
@@ -25,7 +25,7 @@ type PutAppendReply struct {
 
 type GetArgs struct {
 	Key string
-	ReqId
+	Id  ReqId
 }
 
 type GetReply struct {

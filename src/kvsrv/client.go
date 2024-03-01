@@ -37,7 +37,7 @@ func MakeClerk(server *labrpc.ClientEnd) *Clerk {
 	}
 
 	ck.id = int64(node.Generate())
-	ck.reqIncr = utils.Incrementer{Number: 0}
+	ck.reqIncr = utils.Incrementer{Value: 0}
 
 	return ck
 }
@@ -55,6 +55,10 @@ func MakeClerk(server *labrpc.ClientEnd) *Clerk {
 func (ck *Clerk) Get(key string) string {
 	args := GetArgs{
 		Key: key,
+		Id: ReqId{
+			Client: ck.id,
+			Seq:    ck.reqIncr.Increment(),
+		},
 	}
 	reply := GetReply{}
 
@@ -75,6 +79,10 @@ func (ck *Clerk) PutAppend(key string, value string, op OperationType) string {
 	args := PutAppendArgs{
 		Key:   key,
 		Value: value,
+		Id: ReqId{
+			Client: ck.id,
+			Seq:    ck.reqIncr.Increment(),
+		},
 	}
 	reply := PutAppendReply{}
 
