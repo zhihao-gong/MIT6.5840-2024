@@ -1,5 +1,7 @@
 package kvsrv
 
+import "log"
+
 type OperationType int
 
 const (
@@ -30,4 +32,13 @@ type GetArgs struct {
 
 type GetReply struct {
 	Value string
+}
+
+const Debug = false
+
+func DPrintf(format string, a ...interface{}) (n int, err error) {
+	if Debug {
+		log.Printf(format, a...)
+	}
+	return
 }

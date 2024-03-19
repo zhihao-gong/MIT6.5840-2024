@@ -1,72 +1,94 @@
 package kvsrv
 
 import (
-	"log"
-
 	"6.5840/utils"
 )
 
-const Debug = false
-
-func DPrintf(format string, a ...interface{}) (n int, err error) {
-	if Debug {
-		log.Printf(format, a...)
-	}
-	return
-}
-
-func DedupReq[T any, Y any](operation func(t *T, y *Y)) func(t *T, y *Y) {
-	return func(t *T, y *Y) {
-		operation(t, y)
-	}
-}
-
 type KVServer struct {
-	store       utils.ConcurrentMap[string, string]
-	deduplicate utils.ConcurrentMap[string, uint] // key: client id, value: request sequence number
+	store    utils.ConcurrentMap[string, string]
+	reqTable utils.ConcurrentMap[int64, record] // key: client id, value: request sequence number
+}
+
+type record struct {
+	seq   int64
+	value string
+}
+
+func DedupRequest(
+	reqTable *utils.ConcurrentMap[int64, record],
+	clientId int64,
+	reqSeq int64,
+	fn func() string) {
+
+	shard := reqTable.GetShard(clientId)
+	shard.Lock()
+	defer shard.Unlock()
+
+	oldRecord, exists := shard.Items[clientId]
+	if !exists {
+		// value := fn()
+		shard.Items[clientId] = record{seq: reqSeq, value: ""}
+	}
+
+	if reqSeq == oldRecord.seq {
+		return
+	} else if reqSeq > oldRecord.seq {
+		shard.Items[clientId] = record{seq: reqSeq}
+	} else {
+		panic("Request sequence number is less than the one in the record")
+	}
 }
 
 func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
-	key := args.Key
-	reply.Value, _ = kv.store.Get(key)
+	DedupRequest(&kv.reqTable, args.Id.Client, args.Id.Seq, func() string {
+		key := args.Key
+		reply.Value, _ = kv.store.Get(key)
+		return reply.Value
+	})
 }
 
 func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) {
-	key := args.Key
-	value := args.Value
+	DedupRequest(&kv.reqTable, args.Id.Client, args.Id.Seq, func() string {
+		key := args.Key
+		value := args.Value
 
-	shard := kv.store.GetShard(args.Key)
-	shard.Lock()
-	defer shard.Unlock()
-	oldValue, exists := shard.Items[key]
-	shard.Items[key] = value
+		shard := kv.store.GetShard(args.Key)
+		shard.Lock()
+		defer shard.Unlock()
+		oldValue, exists := shard.Items[key]
+		shard.Items[key] = value
 
-	if !exists {
-		reply.OldValue = ""
-	} else {
-		reply.OldValue = oldValue
-	}
+		if !exists {
+			reply.OldValue = ""
+		} else {
+			reply.OldValue = oldValue
+		}
 
+		return reply.OldValue
+	})
 }
 
 func (kv *KVServer) Append(args *PutAppendArgs, reply *PutAppendReply) {
-	key := args.Key
-	value := args.Value
+	DedupRequest(&kv.reqTable, args.Id.Client, args.Id.Seq, func() string {
+		key := args.Key
+		value := args.Value
 
-	shard := kv.store.GetShard(args.Key)
+		shard := kv.store.GetShard(args.Key)
 
-	shard.Lock()
-	defer shard.Unlock()
+		shard.Lock()
+		defer shard.Unlock()
 
-	oldValue, exists := shard.Items[key]
-	if !exists {
-		shard.Items[key] = value
-		reply.OldValue = ""
-	} else {
-		shard.Items[key] = oldValue + value
-		reply.OldValue = oldValue
-	}
+		oldValue, exists := shard.Items[key]
+		if !exists {
+			shard.Items[key] = value
+			reply.OldValue = ""
+		} else {
+			shard.Items[key] = oldValue + value
+			reply.OldValue = oldValue
+		}
 
+		return reply.OldValue
+	})
 }
 
 func StartKVServer() *KVServer {
