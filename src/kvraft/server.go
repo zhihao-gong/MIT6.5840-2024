@@ -1,12 +1,13 @@
 package kvraft
 
 import (
-	"6.5840/labgob"
-	"6.5840/labrpc"
-	"6.5840/raft"
 	"log"
 	"sync"
 	"sync/atomic"
+
+	"6.5840/labgob"
+	"6.5840/labrpc"
+	"6.5840/raft"
 )
 
 const Debug = false
@@ -40,7 +41,13 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 	// Your code here.
 }
 
-func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
+// unlike in lab 2, neither Put nor Append should return a value.
+// this is already reflected in the PutAppendReply struct.
+func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) {
+	// Your code here.
+}
+
+func (kv *KVServer) Append(args *PutAppendArgs, reply *PutAppendReply) {
 	// Your code here.
 }
 
@@ -79,7 +86,7 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 	// call labgob.Register on structures you want
 	// Go's RPC library to marshall/unmarshall.
 	labgob.Register(Op{})
-
+	
 	kv := new(KVServer)
 	kv.me = me
 	kv.maxraftstate = maxraftstate
