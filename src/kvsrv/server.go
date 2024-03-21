@@ -27,9 +27,6 @@ type execMeta struct {
 	result string
 }
 
-// I have an sorted array, like [1,2,3,4,5]
-// please write a binary search for me
-
 func DedupRequest(
 	reqTable *utils.ConcurrentMap[int64, record],
 	clientId int64,
@@ -124,9 +121,8 @@ func (kv *KVServer) Append(args *PutAppendArgs, reply *PutAppendReply) {
 
 func StartKVServer() *KVServer {
 	kv := &KVServer{
-		store: utils.New[string](),
-		// reqTable: utils.NewWithCustomShardingFunction[int64, record](fnv32){}
-		reqTable: utils.NewWithCustomShardingFunction[int64, record](fnv32),
+		store:    utils.New[string](),
+		reqTable: utils.NewWithCustomShardingFunction[int64, record](utils.Fnv32Int64),
 	}
 
 	return kv

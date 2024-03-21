@@ -5,6 +5,7 @@
 package utils
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -342,6 +343,7 @@ func (m ConcurrentMap[K, V]) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(tmp)
 }
+
 func strfnv32[K fmt.Stringer](key K) uint32 {
 	return fnv32(key.String())
 }
@@ -353,6 +355,21 @@ func fnv32(key string) uint32 {
 	for i := 0; i < keyLength; i++ {
 		hash *= prime32
 		hash ^= uint32(key[i])
+	}
+	return hash
+}
+
+func Fnv32Int64(key int64) uint32 {
+	hash := uint32(2166136261)
+	const prime32 = uint32(16777619)
+
+	// Convert int64 to byte slice
+	keyBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(keyBytes, uint64(key))
+
+	for _, b := range keyBytes {
+		hash *= prime32
+		hash ^= uint32(b)
 	}
 	return hash
 }
