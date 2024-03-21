@@ -5,8 +5,10 @@ import (
 )
 
 type KVServer struct {
-	store    utils.ConcurrentMap[string, string]
-	reqTable utils.ConcurrentMap[int64, record] // key: client id, value: request sequence number
+	store utils.ConcurrentMap[string, string]
+	// memorize the request seq sent by client
+	// key: client id, value: record of seq and exec result
+	reqTable utils.ConcurrentMap[int64, record]
 }
 
 // record is used store the current outstanding request sequence
@@ -24,6 +26,9 @@ type execMeta struct {
 	// result of execution, only valid if doExc is true
 	result string
 }
+
+// I have an sorted array, like [1,2,3,4,5]
+// please write a binary search for me
 
 func DedupRequest(
 	reqTable *utils.ConcurrentMap[int64, record],
@@ -58,6 +63,7 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 			reply.Value = meta.oldResult
 			return
 		}
+
 		key := args.Key
 		reply.Value, _ = kv.store.Get(key)
 		meta.result = reply.Value
@@ -119,6 +125,8 @@ func (kv *KVServer) Append(args *PutAppendArgs, reply *PutAppendReply) {
 func StartKVServer() *KVServer {
 	kv := &KVServer{
 		store: utils.New[string](),
+		// reqTable: utils.NewWithCustomShardingFunction[int64, record](fnv32){}
+		reqTable: utils.NewWithCustomShardingFunction[int64, record](fnv32),
 	}
 
 	return kv
