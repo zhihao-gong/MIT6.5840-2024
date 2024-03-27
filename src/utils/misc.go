@@ -2,6 +2,7 @@ package utils
 
 import (
 	"io"
+	"math/rand"
 	"os"
 	"path/filepath"
 )
@@ -42,4 +43,8 @@ func WriteFile(filename string, content []byte) error {
 	}
 
 	return nil
+}
+
+func Random1024() int64 {
+	return int64(rand.Intn(1024))
 }

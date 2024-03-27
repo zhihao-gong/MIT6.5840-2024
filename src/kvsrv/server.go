@@ -45,12 +45,10 @@ func DedupRequest(
 	} else if reqSeq == oldRecord.seq {
 		meta := execMeta{doExc: false, oldResult: oldRecord.value}
 		fn(&meta)
-	} else if reqSeq > oldRecord.seq {
+	} else {
 		meta := execMeta{doExc: true, result: ""}
 		fn(&meta)
 		shard.Items[clientId] = record{seq: reqSeq, value: meta.result}
-	} else {
-		panic("Request sequence number is less than the one in the record")
 	}
 }
 
@@ -70,7 +68,6 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) {
 	DedupRequest(&kv.reqTable, args.Id.Client, args.Id.Seq, func(meta *execMeta) {
 		if !meta.doExc {
-			reply.OldValue = meta.oldResult
 			return
 		}
 		key := args.Key
@@ -79,23 +76,15 @@ func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) {
 		shard := kv.store.GetShard(args.Key)
 		shard.Lock()
 		defer shard.Unlock()
-		oldValue, exists := shard.Items[key]
+
 		shard.Items[key] = value
-
-		if !exists {
-			reply.OldValue = ""
-		} else {
-			reply.OldValue = oldValue
-		}
-
-		meta.result = reply.OldValue
 	})
 }
 
 func (kv *KVServer) Append(args *PutAppendArgs, reply *PutAppendReply) {
 	DedupRequest(&kv.reqTable, args.Id.Client, args.Id.Seq, func(meta *execMeta) {
 		if !meta.doExc {
-			reply.OldValue = meta.oldResult
+			reply.Value = meta.oldResult
 			return
 		}
 		key := args.Key
@@ -109,13 +98,13 @@ func (kv *KVServer) Append(args *PutAppendArgs, reply *PutAppendReply) {
 		oldValue, exists := shard.Items[key]
 		if !exists {
 			shard.Items[key] = value
-			reply.OldValue = ""
+			reply.Value = ""
 		} else {
 			shard.Items[key] = oldValue + value
-			reply.OldValue = oldValue
+			reply.Value = oldValue
 		}
 
-		meta.result = reply.OldValue
+		meta.result = reply.Value
 	})
 }
 

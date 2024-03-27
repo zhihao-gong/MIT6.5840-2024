@@ -22,7 +22,7 @@ type PutAppendArgs struct {
 }
 
 type PutAppendReply struct {
-	OldValue string
+	Value string
 }
 
 type GetArgs struct {
