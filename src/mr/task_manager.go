@@ -20,6 +20,8 @@ type task struct {
 	Outputs  []string
 
 	NReduce          int
+
+	// worker info will be set when assigned
 	AssignedWorkerId string
 	AssignedTime     int64
 }
@@ -275,6 +277,7 @@ func (ts *taskSet) setPending(taskId string, workerId string) bool {
 		return false
 	}
 
+	// clear the assigned worker and time before putting it back to pending queue
 	task.AssignedTime = 0
 	task.AssignedWorkerId = ""
 
