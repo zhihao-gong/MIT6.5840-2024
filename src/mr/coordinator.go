@@ -128,6 +128,7 @@ func (c *Coordinator) auditWorkerStatus() {
 			worker.status = lost
 			c.workers.mapping.Put(worker.id, worker)
 
+			// cancel the task which has assigned to the worker since worker is lost
 			c.taskManager.cancelTaskForWorker(worker.id)
 		}
 	}
