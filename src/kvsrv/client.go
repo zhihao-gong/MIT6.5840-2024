@@ -2,12 +2,15 @@ package kvsrv
 
 import (
 	"crypto/rand"
+	"fmt"
 	"log"
 	"log/slog"
 	"math/big"
+	"os"
 
 	"6.5840/labrpc"
 	"6.5840/utils"
+	"github.com/avast/retry-go"
 	snowflake "github.com/bwmarrin/snowflake"
 )
 
@@ -59,12 +62,7 @@ func (ck *Clerk) Get(key string) string {
 	}
 	reply := GetReply{}
 
-	// FIXME: do we need retry here?
-	// ck.callWithRetry("KVServer.Get", &args, &reply, 1000000)
-	ok := ck.server.Call("KVServer.Get", &args, &reply)
-	if !ok {
-		slog.Error("")
-	}
+	ck.callWithRetry("KVServer.Get", &args, &reply, 1000000)
 
 	return reply.Value
 }
@@ -90,15 +88,9 @@ func (ck *Clerk) PutAppend(key string, value string, op OperationType) string {
 
 	switch op {
 	case PutOps:
-		ok := ck.server.Call("KVServer.Put", &args, &reply)
-		if !ok {
-			slog.Error("Error calling Put RPC")
-		}
+		ck.callWithRetry("KVServer.Put", &args, &reply, 10000)
 	case AppendOps:
-		ok := ck.server.Call("KVServer.Append", &args, &reply)
-		if !ok {
-			slog.Error("Error calling Append RPC")
-		}
+		ck.callWithRetry("KVServer.Append", &args, &reply, 1000)
 	default:
 		panic("Unkown operation type")
 	}
@@ -113,4 +105,26 @@ func (ck *Clerk) Put(key string, value string) {
 // Append value to key's value and return that value
 func (ck *Clerk) Append(key string, value string) string {
 	return ck.PutAppend(key, value, AppendOps)
+}
+
+func (ck *Clerk) callWithRetry(rpcname string,
+	args interface{}, reply interface{}, attempts uint) {
+	err := retry.Do(
+		func() error {
+			ok := ck.server.Call(rpcname, args, reply)
+			if !ok {
+				return fmt.Errorf("error calling %s RPC", rpcname)
+			}
+			return nil
+		},
+		retry.Attempts(attempts),
+		retry.DelayType(retry.BackOffDelay),
+		retry.OnRetry(func(n uint, err error) {
+			DPrintf("Retry %v for error: %v\n", fmt.Sprint(n), err)
+		}),
+	)
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
 }
