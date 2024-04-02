@@ -460,7 +460,7 @@ func TestMemAppend2(t *testing.T) {
 
 func TestMemPutMany(t *testing.T) {
 	const (
-		NCLIENT = 100
+		NCLIENT = 100_000
 		MEM     = 1000
 	)
 
@@ -510,7 +510,7 @@ func TestMemPutMany(t *testing.T) {
 
 func TestMemGetMany(t *testing.T) {
 	const (
-		NCLIENT = 100
+		NCLIENT = 100_000
 	)
 
 	cfg := make_config(t, false)
