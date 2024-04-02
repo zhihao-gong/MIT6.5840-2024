@@ -5,4 +5,4 @@
 ## Status
 
 - [x] lab1 map-reduce
-  
+- [x] lab2 Key/Value server
