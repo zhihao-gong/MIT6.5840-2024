@@ -83,6 +83,8 @@ func (cfg *config) deleteClient(ck *Clerk) {
 	defer cfg.mu.Unlock()
 
 	v := cfg.clerks[ck]
+	// This heavy code will do syscall which is slow
+	// and I didn't this code necessary
 	// for i := 0; i < len(v); i++ {
 	// 	os.Remove(v)
 	// }
