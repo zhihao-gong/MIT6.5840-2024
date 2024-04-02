@@ -19,7 +19,7 @@ type task struct {
 	Inputs   []string
 	Outputs  []string
 
-	NReduce          int
+	NReduce int
 
 	// worker info will be set when assigned
 	AssignedWorkerId string

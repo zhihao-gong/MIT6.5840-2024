@@ -53,16 +53,8 @@ func DedupRequest(
 }
 
 func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
-	DedupRequest(&kv.reqTable, args.Id.Client, args.Id.Seq, func(meta *execMeta) {
-		if !meta.doExc {
-			reply.Value = meta.oldResult
-			return
-		}
-
-		key := args.Key
-		reply.Value, _ = kv.store.Get(key)
-		meta.result = reply.Value
-	})
+	key := args.Key
+	reply.Value, _ = kv.store.Get(key)
 }
 
 func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) {
@@ -109,6 +101,7 @@ func (kv *KVServer) Append(args *PutAppendArgs, reply *PutAppendReply) {
 }
 
 func StartKVServer() *KVServer {
+
 	kv := &KVServer{
 		store:    utils.New[string](),
 		reqTable: utils.NewWithCustomShardingFunction[int64, record](utils.Fnv32Int64),
