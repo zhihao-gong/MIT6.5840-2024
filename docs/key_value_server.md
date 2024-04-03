@@ -220,4 +220,6 @@ func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) {
 }
 ```
 
-注意对于 Get 操作不需要做任何的去重, 重复执行 Get 操作, 每次都返回最新的值, 并不会影响 lineability
+**注意** 对于 Get 操作不需要做任何的去重, 重复执行 Get 操作, 每次都返回最新的值, 并不会影响 lineability
+
+Put/Append 需要通过 DedupRequest 做去重
