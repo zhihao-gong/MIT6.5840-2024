@@ -62,7 +62,7 @@ func (ck *Clerk) Get(key string) string {
 	}
 	reply := GetReply{}
 
-	ck.callWithRetry("KVServer.Get", &args, &reply, 1000000)
+	ck.callWithRetry("KVServer.Get", &args, &reply)
 
 	return reply.Value
 }
@@ -88,9 +88,9 @@ func (ck *Clerk) PutAppend(key string, value string, op OperationType) string {
 
 	switch op {
 	case PutOps:
-		ck.callWithRetry("KVServer.Put", &args, &reply, 10000)
+		ck.callWithRetry("KVServer.Put", &args, &reply)
 	case AppendOps:
-		ck.callWithRetry("KVServer.Append", &args, &reply, 1000)
+		ck.callWithRetry("KVServer.Append", &args, &reply)
 	default:
 		panic("Unkown operation type")
 	}
@@ -108,7 +108,7 @@ func (ck *Clerk) Append(key string, value string) string {
 }
 
 func (ck *Clerk) callWithRetry(rpcname string,
-	args interface{}, reply interface{}, attempts uint) {
+	args interface{}, reply interface{}) {
 	err := retry.Do(
 		func() error {
 			ok := ck.server.Call(rpcname, args, reply)
@@ -117,7 +117,7 @@ func (ck *Clerk) callWithRetry(rpcname string,
 			}
 			return nil
 		},
-		retry.Attempts(attempts),
+		retry.Attempts(10000000),
 		retry.DelayType(retry.BackOffDelay),
 		retry.OnRetry(func(n uint, err error) {
 			DPrintf("Retry %v for error: %v\n", fmt.Sprint(n), err)
