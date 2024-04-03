@@ -110,3 +110,82 @@ args := GetArgs{
 ```
 
 ## server
+
+### 存储
+
+KVServer 里的 store 用来做存储, store 是个根据开源 [ConcurrentMap](https://github.com/orcaman/concurrent-map) 适配后的结构, 该实现对把 key 分片到不同的 map 上, 减少 mutex 带来的竞争, 更适合并发
+
+```go
+type KVServer struct {
+  store utils.ConcurrentMap[string, string]
+  ...
+}
+```
+
+在使用 concurrent map 的时候可以直接调用 Set/Get 等 api, 对于需要对多个操作实现原子性场景, 也可以手动对分片加锁
+
+```go
+key := args.Key
+value := args.Value
+
+// 通过 key 获取分片
+shard := kv.store.GetShard(args.Key)
+
+// 手动对分片加锁
+shard.Lock()
+defer shard.Unlock()
+
+oldValue, exists := shard.Items[key]
+if !exists {
+  shard.Items[key] = value
+  reply.Value = ""
+} else {
+  shard.Items[key] = oldValue + value
+  reply.Value = oldValue
+}
+```
+<!--
+### 去重
+
+```go
+// record is used store the current outstanding request sequence
+// and the corresponding result
+type record struct {
+ seq   int64
+ value string
+}
+
+type execMeta struct {
+ // whether the request needs to be executed
+ doExc bool
+ // result of the old request, only valid if doExc is false
+ oldResult string
+ // result of execution, only valid if doExc is true
+ result string
+}
+
+func DedupRequest(
+ reqTable *utils.ConcurrentMap[int64, record],
+ clientId int64,
+ reqSeq int64,
+ fn func(*execMeta)) {
+
+ shard := reqTable.GetShard(clientId)
+ shard.Lock()
+ defer shard.Unlock()
+
+ oldRecord, exists := shard.Items[clientId]
+ if !exists {
+  meta := execMeta{doExc: true, result: ""}
+  fn(&meta)
+  shard.Items[clientId] = record{seq: reqSeq, value: meta.result}
+ } else if reqSeq == oldRecord.seq {
+  meta := execMeta{doExc: false, oldResult: oldRecord.value}
+  fn(&meta)
+ } else {
+  meta := execMeta{doExc: true, result: ""}
+  fn(&meta)
+  shard.Items[clientId] = record{seq: reqSeq, value: meta.result}
+ }
+}
+``` -->

@@ -53,7 +53,7 @@ func DedupRequest(
 }
 
 func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
-	// For Get, we don't need to DedupRequest 
+	// For Get, we don't need to DedupRequest
 	// because always return the latest value on server don't compromise linearizability
 	key := args.Key
 	reply.Value, _ = kv.store.Get(key)
@@ -67,11 +67,7 @@ func (kv *KVServer) Put(args *PutAppendArgs, reply *PutAppendReply) {
 		key := args.Key
 		value := args.Value
 
-		shard := kv.store.GetShard(args.Key)
-		shard.Lock()
-		defer shard.Unlock()
-
-		shard.Items[key] = value
+		kv.store.Set(key, value)
 	})
 }
 
