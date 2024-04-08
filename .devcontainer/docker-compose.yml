@@ -5,8 +5,9 @@ services:
     build: .
     volumes:
       - ../:/workspace
-      # SSH directory for Linux, OSX and WSL
-      - ~/.ssh:/root/.ssh
+      # SSH files for github interaction
+      - ~/.ssh/id_ed25519:/root/.ssh/id_ed25519
+      - ~/.ssh/known_hosts:/root/.ssh/known_hosts
       # Shell history persistence
       - ~/.zsh_history:/root/.zsh_history
     environment:
