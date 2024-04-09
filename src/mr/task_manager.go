@@ -10,6 +10,15 @@ import (
 	"github.com/google/uuid"
 )
 
+type taskType int
+
+const (
+	mapTaskType taskType = iota
+	reduceTaskType
+	// tell worker to exit as all tasks have been finished
+	exitTaskType
+)
+
 // Task is the unit of work for the worker
 // Captialize the first letter of the fields to make them public to rpc modules
 type task struct {
@@ -36,15 +45,6 @@ type taskManager struct {
 	phase phase
 	mutex sync.RWMutex
 }
-
-type taskType int
-
-const (
-	mapTaskType taskType = iota
-	reduceTaskType
-	// tell worker to exit as all tasks have been finished
-	exitTaskType
-)
 
 type phase int
 

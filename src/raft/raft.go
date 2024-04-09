@@ -49,6 +49,15 @@ type ApplyMsg struct {
 	SnapshotIndex int
 }
 
+type TermMeta struct {
+	// latest term server has seen (initialized to 0
+	// on first boot, increases monotonically)
+	currentTerm int
+	// candidateId that received vote in current term
+	votedFor bool
+	isLeader bool
+}
+
 // A Go object implementing a single Raft peer.
 type Raft struct {
 	mu        sync.Mutex          // Lock to protect shared access to this peer's state
@@ -60,17 +69,18 @@ type Raft struct {
 	// Your data here (3A, 3B, 3C).
 	// Look at the paper's Figure 2 for a description of what
 	// state a Raft server must maintain.
+	TermMeta
 
+	// log entries; each entry contains command for state machine,
+	// and term when entry was received by leader (first index is 1)
+	// log []LogEntry
 }
 
 // return currentTerm and whether this server
 // believes it is the leader.
 func (rf *Raft) GetState() (int, bool) {
-
-	var term int
-	var isleader bool
 	// Your code here (3A).
-	return term, isleader
+	return int(rf.currentTerm), rf.isLeader
 }
 
 // save Raft's persistent state to stable storage,
@@ -124,17 +134,33 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
 // field names must start with capital letters!
 type RequestVoteArgs struct {
 	// Your data here (3A, 3B).
+	candidateId  int64
+	term         int
+	lastLogIndex uint64
+	lastLogTerm  uint64
 }
 
 // example RequestVote RPC reply structure.
 // field names must start with capital letters!
 type RequestVoteReply struct {
 	// Your data here (3A).
+	term  int
+	grant bool
 }
 
 // example RequestVote RPC handler.
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (3A, 3B).
+	if args.term < rf.currentTerm {
+		reply.term = rf.currentTerm
+		reply.grant = false
+		return
+	}
+
+	if !rf.votedFor {
+		reply.grant = true
+		return
+	}
 }
 
 // example code to send a RequestVote RPC to a server.
@@ -239,6 +265,9 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.me = me
 
 	// Your initialization code here (3A, 3B, 3C).
+	rf.currentTerm = 0
+	rf.votedFor = false
+	rf.isLeader = false
 
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
