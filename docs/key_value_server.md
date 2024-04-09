@@ -1,8 +1,5 @@
-<!-- TOC -->
 
-<!-- /TOC -->
-
-# 实现
+# KV server 实现
 
 ## client
 
