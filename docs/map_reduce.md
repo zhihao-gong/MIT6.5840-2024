@@ -293,7 +293,7 @@ func (c *Coordinator) ReportTaskExecution(args *ReportTaskExecutionArgs, reply *
 }
 ```
 
-## 其他提高项
+## 其他待优化项
 
 根据论文还有下面这些功能可以做, 本次 lab 没有实现
 
