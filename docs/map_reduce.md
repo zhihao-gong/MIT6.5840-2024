@@ -42,10 +42,10 @@ Worker 在启动后向 coordinator 发 rpc 请求, coordinator 生成一个 uuid
 
 其他实现: worker id 的生成也可以让 worker 来做, worker 把生成好的 worker id 注册给 coordinator, 前提是保证每个 worker 生成的 id 是唯一
 
-## 任务分配
+## Task 分配思路
 
-有两种任务分配机制，第一种是 `worker` 向 `master` 请求任务，
-第二种是 `master` 向 `worker` 发送任务。
+有两种任务分配机制，第一种是 worker 向 master 请求任务，
+第二种是 master 向 worker 发送任务。
 
 1. Worker 主动向 Master 申请任务：在这种机制中，Worker节点在准备好执行新任务时，会向 Master 节点发送请求以获取任务。Master 节点维护一个待分配任务的队列，并根据到来的请求将任务分配给请求的Worker。
 2. Master 主动向 Worker 发送任务：在这种机制中，Master节点负责跟踪所有可用的 Worker 节点，并根据某种策略（如负载均衡、数据局部性等）主动将任务分配给 Worker。（在真实的分布式系统中，当worker机器上有部分任务的相关文件时，master 会优先分配这部分任务给这个worker）。这要求 Master 具有全局视图，并能够实时监控所有 Worker 的状态。
@@ -57,8 +57,8 @@ Worker 在启动后向 coordinator 发 rpc 请求, coordinator 生成一个 uuid
 
 ### Task 结构体
 
-task 结构体 coordinator 用来保存每个任务的 meta 信息, 同时会被分配给 worker, worker 根据结构题里的 inputs/outputs
-路径读取输入, 做计算, 并生成输出文件
+task 结构体 coordinator 用来保存每个任务的 meta 信息, 同时会被分配给 worker;  inputs/outputs
+记录任务输入和输出文件
 
 注意: map/reduce 模型中 map 任务输入是一个文件, 输出是一组文件, reduce 任务输入是一组文件, 输出是一个文件,
 
@@ -93,7 +93,62 @@ type task struct {
 
 ```
 
-### 任务阶段
+### Worker 轮询申请并处理 task
+
+worker 轮询向 coordinator 申请任务, 注意任务处理需要是原子的
+
+对于 map 任务, 输出的是多个中间文件, 可以随机申请一个 tmp 目录, 将中间文件向 tmp 目录里写, 这样不同的 map 任务各自往不同的目录输出, 彼此不会有冲突
+
+对于 reduce 任务, 输出的是一个文件, 通过 os.Rename 即可保证文件生成的原子性
+
+map/reduce 的输出文件会被汇报给 coordinator
+
+```go
+
+// Loop forever to ask and work on the job assigned from coordinator
+func (w *myWorker) doJob() {
+ for {
+  pending := w.pendingTasks.Dequeue()
+
+  if pending == nil {
+   newTask := w.askForTask()
+   // notes: if id is empty, it means no task assigned by coordinator
+   if newTask == nil || (*newTask).Id == "" {
+    time.Sleep(1 * time.Second)
+   } else {
+    w.pendingTasks.Enqueue(newTask)
+   }
+   continue
+  }
+
+  switch (*pending).TaskType {
+  case mapTaskType:
+   slog.Info("Handling map task: " + (*pending).Id)
+   outputs, err := w.handleMapTask(*pending)
+   if err != nil {
+    slog.Info(err.Error())
+    w.reportTaskExecution((*pending).Id, false, outputs)
+   } else {
+    w.reportTaskExecution((*pending).Id, true, outputs)
+   }
+  case reduceTaskType:
+   slog.Info("Handling reduce task: " + (*pending).Id)
+   outputs, err := w.handleReduceTask(*pending)
+   if err != nil {
+    slog.Info(err.Error())
+    w.reportTaskExecution((*pending).Id, false, outputs)
+   } else {
+    w.reportTaskExecution((*pending).Id, true, outputs)
+   }
+  case exitTaskType:
+   slog.Info("Going to exit the program")
+   os.Exit(0)
+  }
+ }
+}
+```
+
+### 根据当前所处阶段对应分配任务
 
 任务阶段分为 map/reduce/exit, 每次分配任务前检测当前所处阶段, 分配对应类型的任务
 
@@ -127,6 +182,8 @@ func (tm *taskManager) scheduleTask(workerId string) *task {
  }
 }
 ```
+
+### 当前阶段所有任务完成后切换到下一阶段
 
 当每个一个任务完成后, 检查当前阶段的任务是否全部完成, 如果是, 则切换到下一个阶段
 

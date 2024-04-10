@@ -4,5 +4,5 @@
 
 ## Status
 
-- [x] lab1 map-reduce
-- [x] lab2 Key/Value server
+- [x] lab1 map-reduce: [implemention notes](docs/map_reduce.md)
+- [x] lab2 Key/Value server: [implemention notes](docs/map_reduce.md)
