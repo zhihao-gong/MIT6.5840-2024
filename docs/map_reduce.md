@@ -292,3 +292,15 @@ func (c *Coordinator) ReportTaskExecution(args *ReportTaskExecutionArgs, reply *
  return nil
 }
 ```
+
+## 其他提高项
+
+根据论文还有下面这些功能可以做, 本次 lab 没有实现
+
+1. master 容错方案论文给出的是定期 checkpoint 做持久化, 没有更多实现细节, 我的想法是
+   1. 通过 map/reduce 服务外的平台, 例如: k8s, 监控 master 状态, master 挂了之后做 failover
+   2. 部署多个 master 节点, master 节点之间通过共识算法同步状态, leader 节点失联后选举新的 leader
+2. 任务备份解决短板任务慢的问题
+3. 基于 map/reduce 任务是确定的, 本地调试可以复现远程场景
+4. 将任务分配到数据源所在节点, 减少网络传输
+5. 抽象数据源, 支持从 db 或者其他格式数据源
