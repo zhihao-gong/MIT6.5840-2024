@@ -485,7 +485,6 @@ func TestMemPutMany(t *testing.T) {
 	var st runtime.MemStats
 	runtime.ReadMemStats(&st)
 	m0 := st.HeapAlloc
-
 	for i := 0; i < NCLIENT; i++ {
 		cks[i].Put("k", v)
 	}
@@ -500,7 +499,6 @@ func TestMemPutMany(t *testing.T) {
 	if m1 > m0+(NCLIENT*200) {
 		t.Fatalf("error: server using too much memory %d %d (%.2f per client)\n", m0, m1, f)
 	}
-
 	for _, ck := range cks {
 		cfg.deleteClient(ck)
 	}
@@ -510,7 +508,7 @@ func TestMemPutMany(t *testing.T) {
 
 func TestMemGetMany(t *testing.T) {
 	const (
-		NCLIENT = 100
+		NCLIENT = 100_000
 	)
 
 	cfg := make_config(t, false)

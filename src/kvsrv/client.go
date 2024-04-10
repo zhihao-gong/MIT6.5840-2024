@@ -117,7 +117,7 @@ func (ck *Clerk) callWithRetry(rpcname string,
 			}
 			return nil
 		},
-		retry.Attempts(10000000),
+		retry.Attempts(50),
 		retry.DelayType(retry.BackOffDelay),
 		retry.OnRetry(func(n uint, err error) {
 			DPrintf("Retry %v for error: %v\n", fmt.Sprint(n), err)
