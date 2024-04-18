@@ -50,10 +50,8 @@ type ApplyMsg struct {
 	SnapshotIndex int
 }
 
-type Role int
-
 const (
-	Follower Role = iota
+	Follower int32 = iota
 	Candidate
 	Leader
 )
@@ -65,7 +63,7 @@ type TermMeta struct {
 	// whether has voted other in current term
 	hasVoted bool
 	// Leader, follower or candidate in this term
-	role Role
+	role int32
 	// time of last ping from leader
 	lastPingTime time.Time
 }
@@ -156,11 +154,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	}
 
 	if args.Term > rf.currentTerm {
-		// step down to follower
-		rf.currentTerm = args.Term
-		rf.role = Follower
-		rf.hasVoted = false
-
+		rf.becomeFollower(args.Term)
 	}
 
 	if !rf.hasVoted {
@@ -184,13 +178,10 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	}
 
 	if args.Term > rf.currentTerm {
-		// step down to follower
-		rf.currentTerm = args.Term
-		rf.role = Follower
-		rf.hasVoted = false
+		rf.becomeFollower(args.Term)
+	} else {
+		rf.lastPingTime = time.Now()
 	}
-
-	rf.lastPingTime = time.Now()
 
 	reply.Term = rf.currentTerm
 	reply.Success = true
@@ -239,10 +230,7 @@ func (rf *Raft) killed() bool {
 }
 
 func (rf *Raft) isLeader() bool {
-	rf.RLock()
-	defer rf.RUnlock()
-
-	return rf.role == Leader
+	return atomic.LoadInt32(&rf.role) == Leader
 }
 
 func (rf *Raft) loopPing(interval time.Duration) {
@@ -268,6 +256,7 @@ func (rf *Raft) pingPeers() {
 			continue
 		}
 
+		// FIXME: limit the number of concurrent pings
 		go func(i int) {
 			args := AppendEntriesArgs{
 				Term:     rf.currentTerm,
@@ -280,7 +269,7 @@ func (rf *Raft) pingPeers() {
 				if reply.Term > rf.currentTerm {
 					rf.Lock()
 					defer rf.Unlock()
-					rf.downToFollower(reply.Term)
+					rf.becomeFollower(reply.Term)
 				}
 			}
 		}(i)
@@ -288,7 +277,6 @@ func (rf *Raft) pingPeers() {
 }
 
 func (rf *Raft) loopElection(interval time.Duration) {
-
 	for !rf.killed() {
 		if rf.isLeader() {
 			time.Sleep(interval)
@@ -315,7 +303,7 @@ func (rf *Raft) loopElection(interval time.Duration) {
 	}
 }
 
-func (rf *Raft) downToFollower(term int) {
+func (rf *Raft) becomeFollower(term int) {
 	rf.currentTerm = term
 	rf.role = Follower
 	rf.hasVoted = false
@@ -324,7 +312,7 @@ func (rf *Raft) downToFollower(term int) {
 
 func (rf *Raft) ticker() {
 	go rf.loopPing(100 * time.Millisecond)
-
+	go rf.loopElection(100 * time.Millisecond)
 }
 
 func (rf *Raft) startElection() bool {
