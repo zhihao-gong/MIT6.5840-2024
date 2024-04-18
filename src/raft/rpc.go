@@ -2,8 +2,9 @@ package raft
 
 type RequestVoteArgs struct {
 	// Your data here (3A, 3B).
-	CandidateId  int64
-	Term         int
+	CandidateId int
+	Term        int
+
 	LastLogIndex uint64
 	LastLogTerm  uint64
 }
@@ -19,7 +20,7 @@ type AppendEntriesArgs struct {
 	// leader 's term
 	Term int
 	// so follower can redirect clients
-	LeaderId int64
+	LeaderId int
 }
 
 type AppendEntriesReply struct {

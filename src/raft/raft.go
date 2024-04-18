@@ -93,7 +93,7 @@ type Raft struct {
 // believes it is the leader.
 func (rf *Raft) GetState() (int, bool) {
 	// Your code here (3A).
-	return int(rf.currentTerm), rf.isLeader()
+	return rf.currentTerm, rf.isLeader()
 }
 
 // save Raft's persistent state to stable storage,
@@ -146,56 +146,57 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
 // example RequestVote RPC handler.
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (3A, 3B).
+	rf.RLock()
+	defer rf.RUnlock()
+
 	if args.Term < rf.currentTerm {
 		reply.Term = rf.currentTerm
 		reply.Grant = false
 		return
 	}
 
+	if args.Term > rf.currentTerm {
+		// step down to follower
+		rf.currentTerm = args.Term
+		rf.role = Follower
+		rf.hasVoted = false
+
+	}
+
 	if !rf.hasVoted {
+		reply.Term = rf.currentTerm
 		reply.Grant = true
 		rf.hasVoted = true
-		return
+	} else {
+		reply.Term = rf.currentTerm
+		reply.Grant = false
 	}
 }
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
 	rf.Lock()
-	rf.lastPingTime = time.Now()
 	defer rf.Unlock()
+
+	if args.Term < rf.currentTerm {
+		reply.Term = rf.currentTerm
+		reply.Success = false
+		return
+	}
+
+	if args.Term > rf.currentTerm {
+		// step down to follower
+		rf.currentTerm = args.Term
+		rf.role = Follower
+		rf.hasVoted = false
+	}
+
+	rf.lastPingTime = time.Now()
+
+	reply.Term = rf.currentTerm
+	reply.Success = true
 }
 
-// example code to send a RequestVote RPC to a server.
-// server is the index of the target server in rf.peers[].
-// expects RPC arguments in args.
-// fills in *reply with RPC reply, so caller should
-// pass &reply.
-// the types of the args and reply passed to Call() must be
-// the same as the types of the arguments declared in the
-// handler function (including whether they are pointers).
-//
-// The labrpc package simulates a lossy network, in which servers
-// may be unreachable, and in which requests and replies may be lost.
-// Call() sends a request and waits for a reply. If a reply arrives
-// within a timeout interval, Call() returns true; otherwise
-// Call() returns false. Thus Call() may not return for a while.
-// A false return can be caused by a dead server, a live server that
-// can't be reached, a lost request, or a lost reply.
-//
-// Call() is guaranteed to return (perhaps after a delay) *except* if the
-// handler function on the server side does not return.  Thus there
-// is no need to implement your own timeouts around Call().
-//
-// look at the comments in ../labrpc/labrpc.go for more details.
-//
-// if you're having trouble getting RPC to work, check that you've
-// capitalized all field names in structs passed over RPC, and
-// that the caller passes the address of the reply struct with &, not
-// the struct itself.
-func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
-	ok := rf.peers[server].Call("Raft.RequestVote", args, reply)
-	return ok
-}
+// func (rf *Raft)
 
 // the service using Raft (e.g. a k/v server) wants to start
 // agreement on the next command to be appended to Raft's log. if this
@@ -238,24 +239,73 @@ func (rf *Raft) killed() bool {
 }
 
 func (rf *Raft) isLeader() bool {
+	rf.RLock()
+	defer rf.RUnlock()
+
 	return rf.role == Leader
 }
 
-func (rf *Raft) ticker() {
+func (rf *Raft) loopPing(interval time.Duration) {
 	for !rf.killed() {
+		if !rf.isLeader() {
+			time.Sleep(interval)
+		}
+
+		start := time.Now()
+		rf.pingPeers()
+		elapsed := time.Since(start)
+
+		// Adjust the ticker interval to account for function execution time
+		if elapsed < interval {
+			time.Sleep(interval - elapsed)
+		}
+	}
+}
+
+func (rf *Raft) pingPeers() {
+	for i := range rf.peers {
+		if i == rf.me {
+			continue
+		}
+
+		go func(i int) {
+			args := AppendEntriesArgs{
+				Term:     rf.currentTerm,
+				LeaderId: rf.me,
+			}
+			reply := AppendEntriesReply{}
+
+			ok := rf.peers[i].Call("Raft.AppendEntries", args, reply)
+			if ok {
+				if reply.Term > rf.currentTerm {
+					rf.Lock()
+					defer rf.Unlock()
+					rf.downToFollower(reply.Term)
+				}
+			}
+		}(i)
+	}
+}
+
+func (rf *Raft) loopElection(interval time.Duration) {
+
+	for !rf.killed() {
+		if rf.isLeader() {
+			time.Sleep(interval)
+		}
 
 		electonTimeout := time.Duration((150 + rand.Intn(150))) * time.Millisecond
+		rf.Lock()
+		defer rf.Unlock()
 
-		if !rf.isLeader() {
-			rf.Lock()
-			defer rf.Unlock()
+		if time.Since(rf.lastPingTime) > electonTimeout {
+			rf.role = Candidate
+			rf.currentTerm++
+			rf.hasVoted = true
 
-			if time.Since(rf.lastPingTime) > electonTimeout {
-				rf.role = Candidate
-				rf.currentTerm++
-				rf.hasVoted = true
-				// start election
-
+			// start election
+			if rf.startElection() {
+				rf.role = Leader
 			}
 		}
 
@@ -263,6 +313,60 @@ func (rf *Raft) ticker() {
 		ms := 50 + (rand.Int63() % 300)
 		time.Sleep(time.Duration(ms) * time.Millisecond)
 	}
+}
+
+func (rf *Raft) downToFollower(term int) {
+	rf.currentTerm = term
+	rf.role = Follower
+	rf.hasVoted = false
+	rf.lastPingTime = time.Now()
+}
+
+func (rf *Raft) ticker() {
+	go rf.loopPing(100 * time.Millisecond)
+
+}
+
+func (rf *Raft) startElection() bool {
+
+	var wg sync.WaitGroup
+
+	getVotes := 0
+	for i := range rf.peers {
+		if i == rf.me {
+			// vote for itself
+			getVotes += 1
+			continue
+		}
+
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+
+			args := RequestVoteArgs{
+				Term:        rf.currentTerm,
+				CandidateId: rf.me,
+			}
+			reply := RequestVoteReply{}
+			ok := rf.peers[i].Call("Raft.RequestVote", args, reply)
+			if ok {
+				if reply.Grant {
+					getVotes += 1
+				}
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	if getVotes > len(rf.peers)/2 {
+		// becomes leader
+		rf.role = Leader
+		return true
+	}
+
+	// TODO: 根据投票结果返回 true 或 false
+	return true
 }
 
 // the service or tester wants to create a Raft server. the ports
@@ -285,6 +389,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.currentTerm = 0
 	rf.hasVoted = false
 	rf.role = Follower
+	rf.lastPingTime = time.Now()
 
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
