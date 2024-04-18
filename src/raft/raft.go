@@ -233,6 +233,13 @@ func (rf *Raft) isLeader() bool {
 	return atomic.LoadInt32(&rf.role) == Leader
 }
 
+func (rf *Raft) becomeFollower(term int) {
+	rf.currentTerm = term
+	rf.role = Follower
+	rf.hasVoted = false
+	rf.lastPingTime = time.Now()
+}
+
 func (rf *Raft) loopPing(interval time.Duration) {
 	for !rf.killed() {
 		if !rf.isLeader() {
@@ -303,20 +310,7 @@ func (rf *Raft) loopElection(interval time.Duration) {
 	}
 }
 
-func (rf *Raft) becomeFollower(term int) {
-	rf.currentTerm = term
-	rf.role = Follower
-	rf.hasVoted = false
-	rf.lastPingTime = time.Now()
-}
-
-func (rf *Raft) ticker() {
-	go rf.loopPing(100 * time.Millisecond)
-	go rf.loopElection(100 * time.Millisecond)
-}
-
 func (rf *Raft) startElection() bool {
-
 	var wg sync.WaitGroup
 
 	getVotes := 0
@@ -355,6 +349,11 @@ func (rf *Raft) startElection() bool {
 
 	// TODO: 根据投票结果返回 true 或 false
 	return true
+}
+
+func (rf *Raft) ticker() {
+	go rf.loopPing(100 * time.Millisecond)
+	go rf.loopElection(100 * time.Millisecond)
 }
 
 // the service or tester wants to create a Raft server. the ports
