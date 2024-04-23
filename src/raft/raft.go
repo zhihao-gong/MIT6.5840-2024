@@ -271,7 +271,7 @@ func (rf *Raft) pingPeers() {
 			}
 			reply := AppendEntriesReply{}
 
-			ok := rf.peers[i].Call("Raft.AppendEntries", args, reply)
+			ok := rf.peers[i].Call("Raft.AppendEntries", &args, &reply)
 			if ok {
 				if reply.Term > rf.currentTerm {
 					rf.Lock()
@@ -329,8 +329,9 @@ func (rf *Raft) startElection() bool {
 				Term:        rf.currentTerm,
 				CandidateId: rf.me,
 			}
+			// raft.AppendEntriesArgs
 			reply := RequestVoteReply{}
-			ok := rf.peers[i].Call("Raft.RequestVote", args, reply)
+			ok := rf.peers[i].Call("Raft.RequestVote", &args, &reply)
 			if ok {
 				if reply.Grant {
 					getVotes += 1
