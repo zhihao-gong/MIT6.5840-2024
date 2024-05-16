@@ -18,15 +18,15 @@ package raft
 //
 
 import (
-	//	"bytes"
-
 	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	//	"6.5840/labgob"
+	"log/slog"
+
 	"6.5840/labrpc"
+	"github.com/enriquebris/goconcurrentqueue"
 )
 
 // as each Raft peer becomes aware that successive log entries are
@@ -258,6 +258,8 @@ func (rf *Raft) loopPing(interval time.Duration) {
 }
 
 func (rf *Raft) pingPeers() {
+	termQueue := goconcurrentqueue.NewFIFO()
+
 	for i := range rf.peers {
 		if i == rf.me {
 			continue
@@ -274,12 +276,30 @@ func (rf *Raft) pingPeers() {
 			ok := rf.peers[i].Call("Raft.AppendEntries", &args, &reply)
 			if ok {
 				if reply.Term > rf.currentTerm {
-					rf.Lock()
-					defer rf.Unlock()
-					rf.becomeFollower(reply.Term)
+					termQueue.Enqueue(reply.Term)
 				}
 			}
 		}(i)
+	}
+
+	if termQueue.GetLen() > 0 {
+		newTerm := rf.currentTerm
+		for termQueue.GetLen() > 0 {
+			term, err := termQueue.Dequeue()
+			if err != nil {
+				slog.Error("Deque error: %v", err)
+				continue
+			}
+			if termInt, ok := term.(int); ok {
+				if termInt > newTerm {
+					newTerm = termInt
+				}
+			}
+		}
+
+		rf.Lock()
+		defer rf.Unlock()
+		rf.becomeFollower(newTerm)
 	}
 }
 

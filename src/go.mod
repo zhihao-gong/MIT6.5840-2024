@@ -7,3 +7,5 @@ require (
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/google/uuid v1.4.0
 )
+
+require github.com/enriquebris/goconcurrentqueue v0.7.0 // indirect
