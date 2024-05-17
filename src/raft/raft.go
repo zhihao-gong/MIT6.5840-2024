@@ -309,20 +309,23 @@ func (rf *Raft) loopElection(interval time.Duration) {
 			time.Sleep(interval)
 		}
 
-		electonTimeout := time.Duration((150 + rand.Intn(150))) * time.Millisecond
-		rf.Lock()
-		defer rf.Unlock()
+		electonTimeout := time.Duration((450 + rand.Intn(450))) * time.Millisecond
 
+		rf.Lock()
 		if time.Since(rf.lastPingTime) > electonTimeout {
 			rf.role = Candidate
 			rf.currentTerm++
 			rf.hasVoted = true
 
 			// start election
-			if rf.startElection() {
+			success := rf.startElection()
+			if success {
 				rf.role = Leader
+			} else {
+
 			}
 		}
+		rf.Unlock()
 
 		// FIXME: is randomness necessary?
 		ms := 50 + (rand.Int63() % 300)
@@ -331,9 +334,9 @@ func (rf *Raft) loopElection(interval time.Duration) {
 }
 
 func (rf *Raft) startElection() bool {
-	var wg sync.WaitGroup
+	getVotes := int64(0)
+	termQueue := goconcurrentqueue.NewFIFO()
 
-	getVotes := 0
 	for i := range rf.peers {
 		if i == rf.me {
 			// vote for itself
@@ -341,28 +344,42 @@ func (rf *Raft) startElection() bool {
 			continue
 		}
 
-		wg.Add(1)
 		go func(i int) {
-			defer wg.Done()
-
 			args := RequestVoteArgs{
 				Term:        rf.currentTerm,
 				CandidateId: rf.me,
 			}
-			// raft.AppendEntriesArgs
 			reply := RequestVoteReply{}
 			ok := rf.peers[i].Call("Raft.RequestVote", &args, &reply)
 			if ok {
 				if reply.Grant {
-					getVotes += 1
+					atomic.AddInt64(&getVotes, 1)
+				} else if reply.Term > rf.currentTerm {
+					termQueue.Enqueue(reply.Term)
 				}
 			}
 		}(i)
 	}
 
-	wg.Wait()
+	if termQueue.GetLen() > 0 {
+		newTerm := rf.currentTerm
+		for termQueue.GetLen() > 0 {
+			term, err := termQueue.Dequeue()
+			if err != nil {
+				slog.Error("Deque error: %v", err)
+				continue
+			}
+			if termInt, ok := term.(int); ok {
+				if termInt > newTerm {
+					newTerm = termInt
+				}
+			}
+		}
 
-	if getVotes > len(rf.peers)/2 {
+		rf.Lock()
+		defer rf.Unlock()
+		rf.becomeFollower(newTerm)
+	} else if int(atomic.LoadInt64(&getVotes)) > len(rf.peers)/2 {
 		// becomes leader
 		rf.role = Leader
 		return true
